@@ -128,6 +128,32 @@ export type ApiDashboard = {
   }>;
 };
 
+export type InventoryReportStatus = "AVAILABLE" | "LOW_STOCK" | "OUT_OF_STOCK";
+
+export type ApiInventoryReport = {
+  period: { from: string; to: string; timezone: "UTC"; endInclusive: boolean };
+  summary: {
+    totalProducts: number; activeProducts: number; totalVariants: number; totalStock: number;
+    lowStockVariants: number; outOfStockVariants: number; totalMovementsInPeriod: number;
+  };
+  stock: Array<{
+    productId: string; productName: string; skuBase: string; categoryName: string; programName: string;
+    creatorName: string; variantId: string; sku: string; size: string | null; color: string | null;
+    stock: number; minimumStock: number; status: InventoryReportStatus;
+  }>;
+  movements: Array<{
+    id: string; createdAt: string; type: InventoryMovementType; quantity: number; stockBefore: number;
+    stockAfter: number; reason: string; productName: string; skuBase: string; variantSku: string;
+    size: string | null; color: string | null; userName: string; userEmail: string;
+  }>;
+  movementSummary: {
+    entryMovementCount: number; exitMovementCount: number; adjustmentMovementCount: number;
+    entryUnits: number; exitUnits: number; adjustmentNetUnits: number;
+  };
+  alerts: Array<{ productName: string; sku: string; categoryName: string; stock: number; minimumStock: number; status: Exclude<InventoryReportStatus, "AVAILABLE"> }>;
+  categoryDistribution: Array<{ categoryId: string; categoryName: string; productCount: number; variantCount: number; totalStock: number }>;
+};
+
 type ApiErrorPayload = { error?: string };
 
 export class ApiError extends Error {
@@ -301,5 +327,15 @@ export const inventoryMovementsApi = {
 export const dashboardApi = {
   get() {
     return request<ApiDashboard>("/dashboard");
+  },
+};
+
+export const reportsApi = {
+  inventory(filters: { from?: string; to?: string } = {}) {
+    const query = new URLSearchParams();
+    if (filters.from) query.set("from", filters.from);
+    if (filters.to) query.set("to", filters.to);
+    const suffix = query.size ? `?${query.toString()}` : "";
+    return request<ApiInventoryReport>(`/reports/inventory${suffix}`);
   },
 };
