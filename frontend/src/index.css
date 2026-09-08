@@ -1,0 +1,38 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
+@import 'tailwindcss';
+
+@theme inline {
+  --font-display: 'Fraunces', Georgia, serif;
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --color-sidebar: #1B2B2D;
+  --color-sidebar-hover: #243B3D;
+  --color-sidebar-active: #2D6A6A;
+  --color-primary: #2D6A6A;
+  --color-primary-hover: #245757;
+  --color-primary-light: #E8F4F4;
+  --color-accent: #C4813A;
+  --color-accent-light: #FDF3E7;
+  --color-background: #F5F3F0;
+  --color-surface: #FFFFFF;
+  --color-border: #E2DDD7;
+  --color-text: #1A1A1A;
+  --color-muted: #6B6560;
+  --color-success: #2E7D32;
+  --color-success-light: #E8F5E9;
+  --color-warning: #C4813A;
+  --color-warning-light: #FDF3E7;
+  --color-danger: #C62828;
+  --color-danger-light: #FFEBEE;
+  --color-info: #1565C0;
+  --color-info-light: #E3F2FD;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
