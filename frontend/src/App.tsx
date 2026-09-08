@@ -3,7 +3,10 @@ import {
   USERS, CATEGORIES, PROGRAMS, PRODUCTS, MOVEMENTS,
   type User, type Category, type Program, type Product, type Movement, type ProductVariant,
 } from "./data";
-import { ApiError, authApi, type AuthenticatedUser } from "./lib/api";
+import {
+  ApiError, authApi, categoriesApi, programsApi,
+  type ApiCategory, type ApiProgram, type AuthenticatedUser,
+} from "./lib/api";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 const Icon = ({ path, size = 16, className = "" }: { path: string; size?: number; className?: string }) => (
@@ -845,11 +848,30 @@ function ProductDetailScreen({ product, onNavigate }: { product: Product; onNavi
 }
 
 // ─── Categories Screen ────────────────────────────────────────────────────────
-function CategoriesScreen({ products, onNavigate }: { products: Product[]; onNavigate: (s: Screen) => void }) {
+/*function CategoriesScreen({ products, currentUser }: { products: Product[]; currentUser: AuthenticatedUser }) {
   const [showModal, setShowModal] = useState(false);
   const [newCat, setNewCat] = useState({ name: "", code: "", usesSizes: false });
-  const [cats, setCats] = useState<Category[]>(CATEGORIES);
+  const [cats, setCats] = useState<ApiCategory[]>([]);
   const [toast, setToast] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [editing, setEditing] = useState<ApiCategory | null>(null);
+  const isAdmin = currentUser.role === "ADMIN";
+
+  const loadCategories = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const { categories } = await categoriesApi.list();
+      setCats(categories);
+    } catch {
+      setError("No se pudieron cargar las categorías.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void loadCategories(); }, []);
 
   const handleAdd = () => {
     if (!newCat.name) return;
@@ -916,7 +938,30 @@ function CategoriesScreen({ products, onNavigate }: { products: Product[]; onNav
 }
 
 // ─── Programs Screen ──────────────────────────────────────────────────────────
-function ProgramsScreen({ products }: { products: Product[] }) {
+*/
+function CategoriesScreen({ products, currentUser }: { products: Product[]; currentUser: AuthenticatedUser }) {
+  const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const [form, setForm] = useState({ name: "", code: "", usesSizes: false });
+  const [selected, setSelected] = useState<ApiCategory | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const isAdmin = currentUser.role === "ADMIN";
+  const load = async () => { try { setLoading(true); const result = await categoriesApi.list(); setCategories(result.categories); } catch { setMessage("No se pudieron cargar las categorías."); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, []);
+  const close = () => { setShowModal(false); setSelected(null); setForm({ name: "", code: "", usesSizes: false }); };
+  const save = async () => { try { const result = selected ? await categoriesApi.update(selected.id, form) : await categoriesApi.create(form); setCategories((items) => selected ? items.map((item) => item.id === result.category.id ? result.category : item) : [...items, result.category].sort((a, b) => a.name.localeCompare(b.name))); close(); setMessage("Categoría guardada correctamente"); } catch (error) { setMessage(error instanceof ApiError && error.status === 409 ? "El código de categoría ya existe." : "No se pudo guardar la categoría."); } };
+  const edit = (category: ApiCategory) => { setSelected(category); setForm({ name: category.name, code: category.code, usesSizes: category.usesSizes }); setShowModal(true); };
+  const toggle = async (category: ApiCategory) => { try { const result = await categoriesApi.update(category.id, { active: !category.active }); setCategories((items) => items.map((item) => item.id === category.id ? result.category : item)); } catch { setMessage("No se pudo actualizar la categoría."); } };
+  return <div className="flex-1 flex flex-col overflow-hidden">
+    <TopBar title="Categorías de productos" subtitle="Gestión de categorías del inventario" actions={isAdmin ? <Btn variant="primary" size="sm" onClick={() => setShowModal(true)}><Icon path={Icons.plus} size={14} />Nueva categoría</Btn> : undefined} />
+    <div className="flex-1 overflow-y-auto p-6"><div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm overflow-hidden"><table className="w-full text-sm"><thead className="bg-[#F5F3F0]"><tr>{["Categoría", "Código", "Usa tallas", "Productos", "Estado", ...(isAdmin ? ["Acciones"] : [])].map((header) => <th key={header} className="text-left px-5 py-3 text-xs font-medium text-[#6B6560] uppercase tracking-wide border-b border-[#E2DDD7]">{header}</th>)}</tr></thead><tbody className="divide-y divide-[#E2DDD7]">{loading ? <tr><td colSpan={isAdmin ? 6 : 5} className="text-center py-12 text-[#6B6560] text-sm">Cargando categorías...</td></tr> : categories.map((category) => <tr key={category.id} className="hover:bg-[#F5F3F0] transition-colors"><td className="px-5 py-3.5 font-medium text-[#1A1A1A]">{category.name}</td><td className="px-5 py-3.5 font-mono text-xs text-[#6B6560]">{category.code}</td><td className="px-5 py-3.5">{category.usesSizes ? <Badge label="Sí" color="bg-[#E3F2FD] text-[#1565C0]" /> : <span className="text-[#6B6560] text-xs">No</span>}</td><td className="px-5 py-3.5"><span className="font-semibold text-[#2D6A6A]">{products.filter((product) => product.categoryId === category.id).length}</span></td><td className="px-5 py-3.5"><Badge label={category.active ? "Activa" : "Inactiva"} color={category.active ? "bg-[#E8F5E9] text-[#2E7D32]" : "bg-gray-100 text-gray-500"} /></td>{isAdmin && <td className="px-5 py-3.5 flex gap-1"><Btn variant="ghost" size="sm" onClick={() => edit(category)}><Icon path={Icons.edit} size={13} /></Btn><Btn variant="ghost" size="sm" onClick={() => void toggle(category)}>{category.active ? "Desactivar" : "Activar"}</Btn></td>}</tr>)}</tbody></table></div></div>
+    {showModal && <Modal title={selected ? "Editar categoría" : "Nueva categoría"} onClose={close}><div className="space-y-4"><Input label="Nombre de la categoría" value={form.name} onChange={(name) => setForm({ ...form, name })} required /><Input label="Código (para SKU)" value={form.code} onChange={(code) => setForm({ ...form, code })} required /><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={form.usesSizes} onChange={(event) => setForm({ ...form, usesSizes: event.target.checked })} className="accent-[#2D6A6A]" /><span className="text-sm text-[#1A1A1A]">Esta categoría utiliza tallas</span></label><div className="flex justify-end gap-2 pt-2"><Btn variant="secondary" onClick={close}>Cancelar</Btn><Btn variant="primary" onClick={() => void save()}><Icon path={Icons.check} size={14} />{selected ? "Guardar cambios" : "Crear categoría"}</Btn></div></div></Modal>}
+    {message && <Toast message={message} onClose={() => setMessage("")} />}
+  </div>;
+}
+
+/*function ProgramsScreen({ products }: { products: Product[] }) {
   const [showModal, setShowModal] = useState(false);
   const [programs, setPrograms] = useState<Program[]>(PROGRAMS);
   const [newProg, setNewProg] = useState({ name: "", description: "" });
@@ -980,6 +1025,29 @@ function ProgramsScreen({ products }: { products: Product[] }) {
 }
 
 // ─── Movements Screen ─────────────────────────────────────────────────────────
+*/
+function ProgramsScreen({ products, currentUser }: { products: Product[]; currentUser: AuthenticatedUser }) {
+  const [programs, setPrograms] = useState<ApiProgram[]>([]);
+  const [form, setForm] = useState({ name: "", description: "" });
+  const [selected, setSelected] = useState<ApiProgram | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [message, setMessage] = useState("");
+  const isAdmin = currentUser.role === "ADMIN";
+  const load = async () => { try { setLoading(true); const result = await programsApi.list(); setPrograms(result.programs); } catch { setMessage("No se pudieron cargar los programas."); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, []);
+  const close = () => { setShowModal(false); setSelected(null); setForm({ name: "", description: "" }); };
+  const save = async () => { try { const data = { name: form.name, description: form.description.trim() || null }; const result = selected ? await programsApi.update(selected.id, data) : await programsApi.create(data); setPrograms((items) => selected ? items.map((item) => item.id === result.program.id ? result.program : item) : [...items, result.program].sort((a, b) => a.name.localeCompare(b.name))); close(); setMessage("Programa guardado correctamente"); } catch { setMessage("No se pudo guardar el programa."); } };
+  const edit = (program: ApiProgram) => { setSelected(program); setForm({ name: program.name, description: program.description || "" }); setShowModal(true); };
+  const toggle = async (program: ApiProgram) => { try { const result = await programsApi.update(program.id, { active: !program.active }); setPrograms((items) => items.map((item) => item.id === program.id ? result.program : item)); } catch { setMessage("No se pudo actualizar el programa."); } };
+  return <div className="flex-1 flex flex-col overflow-hidden">
+    <TopBar title="Programas / Talleres" subtitle="Gestión de programas y talleres de origen" actions={isAdmin ? <Btn variant="primary" size="sm" onClick={() => setShowModal(true)}><Icon path={Icons.plus} size={14} />Nuevo programa/taller</Btn> : undefined} />
+    <div className="flex-1 overflow-y-auto p-6"><div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm overflow-hidden"><table className="w-full text-sm"><thead className="bg-[#F5F3F0]"><tr>{["Nombre", "Descripción", "Productos", "Estado", ...(isAdmin ? ["Acciones"] : [])].map((header) => <th key={header} className="text-left px-5 py-3 text-xs font-medium text-[#6B6560] uppercase tracking-wide border-b border-[#E2DDD7]">{header}</th>)}</tr></thead><tbody className="divide-y divide-[#E2DDD7]">{loading ? <tr><td colSpan={isAdmin ? 5 : 4} className="text-center py-12 text-[#6B6560] text-sm">Cargando programas...</td></tr> : programs.map((program) => <tr key={program.id} className="hover:bg-[#F5F3F0] transition-colors"><td className="px-5 py-3.5 font-medium text-[#1A1A1A]">{program.name}</td><td className="px-5 py-3.5 text-sm text-[#6B6560]">{program.description || "—"}</td><td className="px-5 py-3.5"><span className="font-semibold text-[#2D6A6A]">{products.filter((product) => product.programId === program.id).length}</span></td><td className="px-5 py-3.5"><Badge label={program.active ? "Activo" : "Inactivo"} color={program.active ? "bg-[#E8F5E9] text-[#2E7D32]" : "bg-gray-100 text-gray-500"} /></td>{isAdmin && <td className="px-5 py-3.5 flex gap-1"><Btn variant="ghost" size="sm" onClick={() => edit(program)}><Icon path={Icons.edit} size={13} /></Btn><Btn variant="ghost" size="sm" onClick={() => void toggle(program)}>{program.active ? "Desactivar" : "Activar"}</Btn></td>}</tr>)}</tbody></table></div></div>
+    {showModal && <Modal title={selected ? "Editar programa / taller" : "Nuevo programa / taller"} onClose={close}><div className="space-y-4"><Input label="Nombre" value={form.name} onChange={(name) => setForm({ ...form, name })} required /><Textarea label="Descripción" value={form.description} onChange={(description) => setForm({ ...form, description })} /><div className="flex justify-end gap-2 pt-2"><Btn variant="secondary" onClick={close}>Cancelar</Btn><Btn variant="primary" onClick={() => void save()}><Icon path={Icons.check} size={14} />{selected ? "Guardar cambios" : "Crear programa"}</Btn></div></div></Modal>}
+    {message && <Toast message={message} onClose={() => setMessage("")} />}
+  </div>;
+}
+
 function MovementsScreen({ onNavigate, products, movements }: { onNavigate: (s: Screen) => void; products: Product[]; movements: Movement[] }) {
   const [typeFilter, setTypeFilter] = useState("");
 
@@ -1310,8 +1378,8 @@ export default function App() {
         {(screen === "product-new") && <ProductFormScreen onNavigate={navigate} onSave={handleSaveProduct} />}
         {screen === "product-edit" && selectedProduct && <ProductFormScreen onNavigate={navigate} onSave={handleSaveProduct} editProduct={selectedProduct} />}
         {screen === "product-detail" && selectedProduct && <ProductDetailScreen product={selectedProduct} onNavigate={navigate} />}
-        {screen === "categories" && <CategoriesScreen products={products} onNavigate={navigate} />}
-        {screen === "programs" && <ProgramsScreen products={products} />}
+        {screen === "categories" && <CategoriesScreen products={products} currentUser={currentUser!} />}
+        {screen === "programs" && <ProgramsScreen products={products} currentUser={currentUser!} />}
         {screen === "movements" && <MovementsScreen onNavigate={navigate} products={products} movements={movements} />}
         {screen === "movement-new" && <NewMovementScreen onNavigate={navigate} products={products} currentUser={currentUser!} onSave={handleSaveMovement} />}
         {screen === "reports" && <ReportsScreen products={products} movements={movements} />}

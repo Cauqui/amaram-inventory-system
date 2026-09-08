@@ -5,6 +5,8 @@ import { env } from "./config/env.js";
 import { sessionMiddleware } from "./config/session.js";
 import { isDatabaseConnected } from "./db/health.js";
 import { authRouter } from "./modules/auth.js";
+import { categoriesRouter } from "./modules/categories.js";
+import { programsRouter } from "./modules/programs.js";
 
 export const app = express();
 
@@ -37,6 +39,8 @@ app.get("/api/v1/health", async (_req, res) => {
 });
 
 app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/categories", categoriesRouter);
+app.use("/api/v1/programs", programsRouter);
 
 app.use(
   (

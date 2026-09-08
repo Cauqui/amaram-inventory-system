@@ -9,6 +9,25 @@ export type AuthenticatedUser = {
   role: AuthRole;
 };
 
+export type ApiCategory = {
+  id: string;
+  name: string;
+  code: string;
+  usesSizes: boolean;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ApiProgram = {
+  id: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 type ApiErrorPayload = { error?: string };
 
 export class ApiError extends Error {
@@ -56,5 +75,49 @@ export const authApi = {
 
   logout() {
     return request<void>("/auth/logout", { method: "POST" });
+  },
+};
+
+export const categoriesApi = {
+  list() {
+    return request<{ categories: ApiCategory[] }>("/categories");
+  },
+
+  create(data: Pick<ApiCategory, "name" | "code" | "usesSizes">) {
+    return request<{ category: ApiCategory }>("/categories", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  update(id: string, data: Partial<Pick<ApiCategory, "name" | "code" | "usesSizes" | "active">>) {
+    return request<{ category: ApiCategory }>(`/categories/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+};
+
+export const programsApi = {
+  list() {
+    return request<{ programs: ApiProgram[] }>("/programs");
+  },
+
+  create(data: Pick<ApiProgram, "name" | "description">) {
+    return request<{ program: ApiProgram }>("/programs", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
+  },
+
+  update(id: string, data: Partial<Pick<ApiProgram, "name" | "description" | "active">>) {
+    return request<{ program: ApiProgram }>(`/programs/${id}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(data),
+    });
   },
 };
