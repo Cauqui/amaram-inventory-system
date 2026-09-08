@@ -36,13 +36,13 @@ model User {
 }
 
 model Category {
-  id         String       @id @default(uuid()) @db.Uuid
-  name       String       @db.VarChar(120)
-  code       String       @unique @db.VarChar(20)
-  usesSizes  Boolean      @default(false) @map("uses_sizes")
-  active     Boolean      @default(true)
-  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id         String      @id @default(uuid()) @db.Uuid
+  name       String      @db.VarChar(120)
+  code       String      @unique @db.VarChar(20)
+  usesSizes  Boolean     @default(false) @map("uses_sizes")
+  active     Boolean     @default(true)
+  createdAt  DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
   products   Product[]
   skuCounter SkuCounter?
 
@@ -64,22 +64,23 @@ model Program {
 }
 
 model Product {
-  id           String           @id @default(uuid()) @db.Uuid
-  name         String           @db.VarChar(200)
-  description  String           @db.Text
-  history      String?          @db.Text
-  categoryId   String           @map("category_id") @db.Uuid
-  programId    String           @map("program_id") @db.Uuid
-  creatorName  String           @map("creator_name") @db.VarChar(150)
-  active       Boolean          @default(true)
-  createdById  String           @map("created_by_id") @db.Uuid
-  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
-  category     Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  program      Program          @relation(fields: [programId], references: [id], onDelete: Restrict)
-  createdBy    User             @relation("ProductCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  variants     ProductVariant[]
-  images       ProductImage[]
+  id          String           @id @default(uuid()) @db.Uuid
+  skuBase     String           @unique @map("sku_base") @db.VarChar(80)
+  name        String           @db.VarChar(200)
+  description String           @db.Text
+  history     String?          @db.Text
+  categoryId  String           @map("category_id") @db.Uuid
+  programId   String           @map("program_id") @db.Uuid
+  creatorName String           @map("creator_name") @db.VarChar(150)
+  active      Boolean          @default(true)
+  createdById String           @map("created_by_id") @db.Uuid
+  createdAt   DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  category    Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  program     Program          @relation(fields: [programId], references: [id], onDelete: Restrict)
+  createdBy   User             @relation("ProductCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  variants    ProductVariant[]
+  images      ProductImage[]
 
   @@index([categoryId])
   @@index([programId])
@@ -94,6 +95,8 @@ model ProductVariant {
   sku          String              @unique @db.VarChar(80)
   size         String?             @db.VarChar(30)
   color        String?             @db.VarChar(80)
+  sizeKey      String              @map("size_key") @db.VarChar(30)
+  colorKey     String              @map("color_key") @db.VarChar(80)
   stock        Int                 @default(0)
   minimumStock Int                 @default(0) @map("minimum_stock")
   active       Boolean             @default(true)
@@ -102,7 +105,7 @@ model ProductVariant {
   product      Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
   movements    InventoryMovement[]
 
-  @@unique([productId, size, color])
+  @@unique([productId, sizeKey, colorKey])
   @@index([productId])
   @@index([active])
   @@map("product_variants")

@@ -38,6 +38,7 @@ CREATE TABLE programs (
 
 CREATE TABLE products (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  sku_base varchar(80) NOT NULL UNIQUE,
   name varchar(200) NOT NULL,
   description text NOT NULL,
   history text,
@@ -56,6 +57,8 @@ CREATE TABLE product_variants (
   sku varchar(80) NOT NULL UNIQUE,
   size varchar(30),
   color varchar(80),
+  size_key varchar(30) NOT NULL,
+  color_key varchar(80) NOT NULL,
   stock integer NOT NULL DEFAULT 0 CHECK (stock >= 0),
   minimum_stock integer NOT NULL DEFAULT 0 CHECK (minimum_stock >= 0),
   active boolean NOT NULL DEFAULT true,
@@ -99,20 +102,9 @@ CREATE TABLE sku_counters (
   updated_at timestamptz(6) NOT NULL DEFAULT now()
 );
 
--- Una variante se identifica por producto/talla/color, incluso cuando talla
--- y/o color son NULL. Los indices parciales cubren los cuatro casos posibles.
-CREATE UNIQUE INDEX product_variants_product_size_color_unique
-  ON product_variants (product_id, size, color)
-  WHERE size IS NOT NULL AND color IS NOT NULL;
-CREATE UNIQUE INDEX product_variants_product_size_null_color_unique
-  ON product_variants (product_id, size)
-  WHERE size IS NOT NULL AND color IS NULL;
-CREATE UNIQUE INDEX product_variants_product_null_size_color_unique
-  ON product_variants (product_id, color)
-  WHERE size IS NULL AND color IS NOT NULL;
-CREATE UNIQUE INDEX product_variants_product_null_size_null_color_unique
-  ON product_variants (product_id)
-  WHERE size IS NULL AND color IS NULL;
+-- Claves normalizadas con sentinelas para valores nulos.
+CREATE UNIQUE INDEX product_variants_product_size_color_key
+  ON product_variants (product_id, size_key, color_key);
 
 CREATE INDEX users_active_idx ON users (active);
 CREATE INDEX categories_active_idx ON categories (active);

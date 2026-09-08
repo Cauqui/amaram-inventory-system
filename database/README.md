@@ -1,49 +1,51 @@
 # Modelo de datos de AMARAM
 
-`amaram.sql` es una referencia DDL para PostgreSQL y `backend/prisma/schema.prisma`
-es el modelo Prisma equivalente. Ninguno inserta datos. En esta etapa no se han
-creado tablas ni migraciones.
+`amaram.sql` es la referencia DDL de PostgreSQL y
+`backend/prisma/schema.prisma` es la fuente ejecutable para Prisma Migrate. El
+archivo SQL de referencia no debe ejecutarse manualmente.
 
 ## Tablas y relaciones
 
 - `users` contiene cuentas internas, roles y estado.
-- `categories` define el codigo para SKU; tiene productos y como maximo un
-  `sku_counter`.
+- `categories` define el código usado en SKU y tiene como máximo un contador.
 - `programs` agrupa productos por programa o taller.
-- `products` pertenece a una categoria, programa y usuario creador; tiene
-  variantes e imagenes.
-- `product_variants` representa cada combinacion de talla/color y su saldo.
-- `product_images` almacena referencias Cloudinary, nunca binarios.
+- `products` pertenece a una categoría, programa y usuario creador. Conserva un
+  `sku_base` único y estable, y tiene variantes e imágenes.
+- `product_variants` representa cada combinación normalizada de talla y color.
+- `product_images` almacena referencias de Cloudinary, nunca binarios.
 - `inventory_movements` conserva el usuario, variante, saldos, cantidad, tipo,
-  motivo y fecha de cada operacion.
-- `sku_counters` conserva un contador unico por categoria.
+  motivo y fecha de cada operación.
+- `sku_counters` conserva el último número utilizado por cada categoría.
 
-Las claves foraneas protegen los registros relacionados. Las imagenes se
-eliminan junto con su producto; los registros vinculados al historial usan
+Las claves foráneas protegen los registros relacionados. Las imágenes se
+eliminan junto con su producto; los registros ligados al historial usan
 `RESTRICT`.
 
 ## Stock y movimientos
 
-El saldo inicial de una variante es `0`. El primer stock se registrara despues
-como un movimiento `ENTRY`; no debe editarse directamente.
+El saldo inicial de toda variante es `0`. El primer stock se registrará como un
+movimiento `ENTRY`; el stock no se edita desde los endpoints de producto.
 
-`stock` y `minimum_stock` no admiten negativos. En PostgreSQL, cada movimiento
-verifica saldos no negativos y su efecto:
+`stock` y `minimum_stock` no admiten negativos. Cada movimiento verifica saldos
+no negativos y su efecto:
 
 - `ENTRY`: cantidad positiva que suma al saldo.
-- `EXIT`: cantidad positiva que resta; no puede producir saldo negativo.
+- `EXIT`: cantidad positiva que resta y no puede producir saldo negativo.
 - `ADJUSTMENT`: cantidad con signo que representa la diferencia aplicada.
 
-El historial no se elimina: el DDL rechaza `DELETE` sobre movimientos. Las
-correcciones se registran como movimientos nuevos. Disponible, bajo stock y sin
-stock se calcularan posteriormente usando `stock` y `minimum_stock`.
+El historial no se elimina. Las correcciones se registran mediante movimientos
+nuevos. Los estados disponible, bajo stock y sin stock se calcularán usando
+`stock` y `minimum_stock`.
 
 ## SKU
 
-El SKU es unico y no depende del UUID. El servicio futuro aumentara
-`sku_counters.last_number` en la misma transaccion que crea la variante, usando
-`categories.code` y un consecutivo.
+El SKU no depende del UUID. Al crear un producto, el backend incrementa de forma
+atómica `sku_counters.last_number` dentro de la misma transacción y construye
+`AMA-{CATEGORY_CODE}-{NUMBER}`. El número se rellena con al menos cuatro dígitos
+y nunca se reutiliza.
 
-La combinacion producto+talla+color es unica incluso cuando talla o color son
-nulos. Prisma expresa la clave compuesta; el SQL añade indices parciales porque
-PostgreSQL trata `NULL` como distinto en un `UNIQUE` convencional.
+Las variantes conservan la base del producto y agregan códigos normalizados de
+talla y color. `size_key` y `color_key` son claves internas obligatorias; usan
+`UNI` y `STD` cuando el dato visible es nulo. La clave única
+`product_id + size_key + color_key` evita duplicados por espacios, diferencias
+de mayúsculas/minúsculas y diacríticos, incluso con valores nulos.

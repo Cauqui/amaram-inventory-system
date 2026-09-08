@@ -7,6 +7,7 @@ import { isDatabaseConnected } from "./db/health.js";
 import { authRouter } from "./modules/auth.js";
 import { categoriesRouter } from "./modules/categories.js";
 import { programsRouter } from "./modules/programs.js";
+import { productsRouter } from "./modules/products.js";
 
 export const app = express();
 
@@ -41,6 +42,7 @@ app.get("/api/v1/health", async (_req, res) => {
 app.use("/api/v1/auth", authRouter);
 app.use("/api/v1/categories", categoriesRouter);
 app.use("/api/v1/programs", programsRouter);
+app.use("/api/v1/products", productsRouter);
 
 app.use(
   (
