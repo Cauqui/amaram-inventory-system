@@ -1,0 +1,14 @@
+AGENTS.md
+# Dependencias y artefactos
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Entorno local y secretos
+.env
+.env.*
+!.env.example
+
+# Cliente generado de Prisma
+/backend/src/generated/prisma/

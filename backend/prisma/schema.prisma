@@ -1,0 +1,154 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "esm"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  INVENTORY
+}
+
+enum InventoryMovementType {
+  ENTRY
+  EXIT
+  ADJUSTMENT
+}
+
+model User {
+  id              String              @id @default(uuid()) @db.Uuid
+  name            String              @db.VarChar(150)
+  email           String              @unique @db.VarChar(320)
+  passwordHash    String              @map("password_hash") @db.VarChar(255)
+  role            UserRole            @default(INVENTORY)
+  active          Boolean             @default(true)
+  createdAt       DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  createdProducts Product[]           @relation("ProductCreator")
+  movements       InventoryMovement[] @relation("MovementUser")
+
+  @@index([active])
+  @@map("users")
+}
+
+model Category {
+  id         String       @id @default(uuid()) @db.Uuid
+  name       String       @db.VarChar(120)
+  code       String       @unique @db.VarChar(20)
+  usesSizes  Boolean      @default(false) @map("uses_sizes")
+  active     Boolean      @default(true)
+  createdAt  DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime     @updatedAt @map("updated_at") @db.Timestamptz(6)
+  products   Product[]
+  skuCounter SkuCounter?
+
+  @@index([active])
+  @@map("categories")
+}
+
+model Program {
+  id          String    @id @default(uuid()) @db.Uuid
+  name        String    @db.VarChar(150)
+  description String?   @db.Text
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  products    Product[]
+
+  @@index([active])
+  @@map("programs")
+}
+
+model Product {
+  id           String           @id @default(uuid()) @db.Uuid
+  name         String           @db.VarChar(200)
+  description  String           @db.Text
+  history      String?          @db.Text
+  categoryId   String           @map("category_id") @db.Uuid
+  programId    String           @map("program_id") @db.Uuid
+  creatorName  String           @map("creator_name") @db.VarChar(150)
+  active       Boolean          @default(true)
+  createdById  String           @map("created_by_id") @db.Uuid
+  createdAt    DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  category     Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  program      Program          @relation(fields: [programId], references: [id], onDelete: Restrict)
+  createdBy    User             @relation("ProductCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  variants     ProductVariant[]
+  images       ProductImage[]
+
+  @@index([categoryId])
+  @@index([programId])
+  @@index([createdById])
+  @@index([active])
+  @@map("products")
+}
+
+model ProductVariant {
+  id           String              @id @default(uuid()) @db.Uuid
+  productId    String              @map("product_id") @db.Uuid
+  sku          String              @unique @db.VarChar(80)
+  size         String?             @db.VarChar(30)
+  color        String?             @db.VarChar(80)
+  stock        Int                 @default(0)
+  minimumStock Int                 @default(0) @map("minimum_stock")
+  active       Boolean             @default(true)
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
+  product      Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+  movements    InventoryMovement[]
+
+  @@unique([productId, size, color])
+  @@index([productId])
+  @@index([active])
+  @@map("product_variants")
+}
+
+model ProductImage {
+  id        String   @id @default(uuid()) @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  publicId  String   @unique @map("public_id") @db.VarChar(255)
+  secureUrl String   @map("secure_url") @db.Text
+  position  Int      @default(0)
+  width     Int?
+  height    Int?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, position])
+  @@index([productId])
+  @@map("product_images")
+}
+
+model InventoryMovement {
+  id          String                @id @default(uuid()) @db.Uuid
+  variantId   String                @map("variant_id") @db.Uuid
+  userId      String                @map("user_id") @db.Uuid
+  type        InventoryMovementType
+  quantity    Int
+  stockBefore Int                   @map("stock_before")
+  stockAfter  Int                   @map("stock_after")
+  reason      String                @db.Text
+  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  variant     ProductVariant        @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  user        User                  @relation("MovementUser", fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([variantId, createdAt(sort: Desc)])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([type, createdAt(sort: Desc)])
+  @@map("inventory_movements")
+}
+
+model SkuCounter {
+  id         String   @id @default(uuid()) @db.Uuid
+  categoryId String   @unique @map("category_id") @db.Uuid
+  lastNumber Int      @default(0) @map("last_number")
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@map("sku_counters")
+}
