@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   USERS, CATEGORIES, PROGRAMS, PRODUCTS, MOVEMENTS,
   type User, type Category, type Program, type Product, type Movement, type ProductVariant,
 } from "./data";
+import { ApiError, authApi, type AuthenticatedUser } from "./lib/api";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 const Icon = ({ path, size = 16, className = "" }: { path: string; size?: number; className?: string }) => (
@@ -209,7 +210,7 @@ function StatCard({ label, value, color = "default", icon }: { label: string; va
 
 // ─── Sidebar ──────────────────────────────────────────────────────────────────
 function Sidebar({ currentScreen, onNavigate, currentUser, onLogout }: {
-  currentScreen: Screen; onNavigate: (s: Screen) => void; currentUser: User; onLogout: () => void;
+  currentScreen: Screen; onNavigate: (s: Screen) => void; currentUser: AuthenticatedUser; onLogout: () => void;
 }) {
   const mainNav = NAV_ITEMS.filter(i => i.id !== "settings");
   const settingsItem = NAV_ITEMS.find(i => i.id === "settings")!;
@@ -250,7 +251,7 @@ function Sidebar({ currentScreen, onNavigate, currentUser, onLogout }: {
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-medium text-white truncate">{currentUser.name}</p>
-            <p className="text-[10px] text-white/50 capitalize">{currentUser.role === "admin" ? "Administrador" : "Inventario"}</p>
+            <p className="text-[10px] text-white/50 capitalize">{currentUser.role === "ADMIN" ? "Administrador" : "Inventario"}</p>
           </div>
           <button onClick={onLogout} className="text-white/40 hover:text-white transition-colors"><Icon path={Icons.logout} size={14} /></button>
         </div>
@@ -282,17 +283,32 @@ function ProductPhoto({ src, size = 32 }: { src: string; size?: number }) {
 }
 
 // ─── Login Screen ─────────────────────────────────────────────────────────────
-function LoginScreen({ onLogin }: { onLogin: (user: User) => void }) {
+function LoginScreen({ onLogin }: { onLogin: (user: AuthenticatedUser) => void }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [error, setError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const user = USERS.find(u => u.email === email && u.password === password);
-    if (user) { setError(""); onLogin(user); }
-    else setError("Credenciales incorrectas. Verifica tu usuario y contraseña.");
+    if (isSubmitting) return;
+
+    setError("");
+    setIsSubmitting(true);
+
+    try {
+      const { user } = await authApi.login(email, password);
+      onLogin(user);
+    } catch (requestError) {
+      setError(
+        requestError instanceof ApiError && requestError.status === 401
+          ? "Correo o contraseña incorrectos."
+          : "No se pudo iniciar sesión. Inténtalo nuevamente.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -337,17 +353,13 @@ function LoginScreen({ onLogin }: { onLogin: (user: User) => void }) {
               </div>
             )}
 
-            <button type="submit" className="w-full bg-[#2D6A6A] text-white py-2.5 rounded text-sm font-medium hover:bg-[#245757] transition-colors active:scale-[0.98]">
-              Iniciar sesión
+            <button type="submit" disabled={isSubmitting} className="w-full bg-[#2D6A6A] text-white py-2.5 rounded text-sm font-medium hover:bg-[#245757] transition-colors active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed">
+              {isSubmitting ? "Iniciando sesión..." : "Iniciar sesión"}
             </button>
           </form>
 
           <div className="mt-5 pt-4 border-t border-[#E2DDD7]">
-            <p className="text-[10px] text-[#6B6560] text-center mb-2">Usuarios de demostración:</p>
-            <div className="space-y-1 text-[10px] text-[#6B6560] font-mono">
-              <p>ana@amaram.org / admin123 (Admin)</p>
-              <p>luisa@amaram.org / inv123 (Inventario)</p>
-            </div>
+            <p className="text-[10px] text-[#6B6560] text-center">Ingresa tus credenciales de acceso.</p>
           </div>
         </div>
       </div>
@@ -356,6 +368,20 @@ function LoginScreen({ onLogin }: { onLogin: (user: User) => void }) {
 }
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
+function AuthLoadingScreen() {
+  return (
+    <div className="min-h-screen bg-[#F5F3F0] flex items-center justify-center p-6">
+      <div className="w-full max-w-sm text-center">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-xl bg-[#1B2B2D] text-white mb-4">
+          <Icon path={Icons.package} size={24} />
+        </div>
+        <h1 className="text-3xl font-bold text-[#1A1A1A]" style={{ fontFamily: "var(--font-display)" }}>AMARAM</h1>
+        <p className="text-sm text-[#6B6560] mt-2">Comprobando sesión...</p>
+      </div>
+    </div>
+  );
+}
+
 function DashboardScreen({ onNavigate, products }: { onNavigate: (s: Screen, data?: unknown) => void; products: Product[] }) {
   const total = products.length;
   const available = products.filter(p => computeStatus(p) === "available").length;
@@ -1013,7 +1039,7 @@ function MovementsScreen({ onNavigate, products, movements }: { onNavigate: (s: 
 
 // ─── New Movement Screen ──────────────────────────────────────────────────────
 function NewMovementScreen({ onNavigate, products, currentUser, onSave }: {
-  onNavigate: (s: Screen) => void; products: Product[]; currentUser: User; onSave: (m: Movement) => void;
+  onNavigate: (s: Screen) => void; products: Product[]; currentUser: { id: string }; onSave: (m: Movement) => void;
 }) {
   const [type, setType] = useState<Movement["type"]>("entrada");
   const [productId, setProductId] = useState("");
@@ -1187,12 +1213,36 @@ function SettingsScreen() {
 
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [screen, setScreen] = useState<Screen>("login");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [products, setProducts] = useState<Product[]>(PRODUCTS);
   const [movements, setMovements] = useState<Movement[]>(MOVEMENTS);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    authApi.me()
+      .then(({ user }) => {
+        if (!mounted) return;
+        setCurrentUser(user);
+        setScreen("dashboard");
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setCurrentUser(null);
+        setScreen("login");
+      })
+      .finally(() => {
+        if (mounted) setAuthLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const showToast = (msg: string, type: "success" | "error" = "success") => {
     setToast({ msg, type });
@@ -1206,15 +1256,21 @@ export default function App() {
     setScreen(s);
   };
 
-  const handleLogin = (user: User) => {
+  const handleLogin = (user: AuthenticatedUser) => {
     setCurrentUser(user);
     setScreen("dashboard");
   };
 
-  const handleLogout = () => {
-    setCurrentUser(null);
-    setScreen("login");
-    setSelectedProduct(null);
+  const handleLogout = async () => {
+    try {
+      await authApi.logout();
+    } catch {
+      // La interfaz vuelve a estado no autenticado aunque la red falle.
+    } finally {
+      setCurrentUser(null);
+      setScreen("login");
+      setSelectedProduct(null);
+    }
   };
 
   const handleSaveProduct = (p: Product) => {
@@ -1241,6 +1297,7 @@ export default function App() {
     }));
   };
 
+  if (authLoading) return <AuthLoadingScreen />;
   if (screen === "login") return <LoginScreen onLogin={handleLogin} />;
 
   return (
