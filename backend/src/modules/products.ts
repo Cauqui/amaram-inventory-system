@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "../db/prisma.js";
 import { requireAuth, requireRole } from "../middleware/auth.js";
@@ -77,8 +78,35 @@ function normalizeVariant(input: z.infer<typeof variantInput>) {
   return { size: visibleSize, color, sizeKey, colorKey, minimumStock: input.minimumStock };
 }
 
-function variantSku(skuBase: string, variant: ReturnType<typeof normalizeVariant>) {
+function shortVariantSku(skuBase: string, variant: ReturnType<typeof normalizeVariant>) {
   return `${skuBase}-${variant.sizeKey}-${variant.colorKey.slice(0, 3)}`;
+}
+
+function colorHash(colorKey: string) {
+  return createHash("sha256").update(colorKey).digest("hex").slice(0, 8).toUpperCase();
+}
+
+function fallbackVariantSku(skuBase: string, variant: ReturnType<typeof normalizeVariant>) {
+  return `${shortVariantSku(skuBase, variant)}-${colorHash(variant.colorKey)}`;
+}
+
+function variantSkusForNewProduct(skuBase: string, variants: ReturnType<typeof normalizeVariant>[]) {
+  const groups = new Map<string, number[]>();
+  variants.forEach((variant, index) => {
+    const key = `${variant.sizeKey}:${variant.colorKey.slice(0, 3)}`;
+    groups.set(key, [...(groups.get(key) ?? []), index]);
+  });
+
+  const skus = variants.map((variant) => shortVariantSku(skuBase, variant));
+  for (const indexes of groups.values()) {
+    const ordered = [...indexes].sort((left, right) =>
+      variants[left]!.colorKey.localeCompare(variants[right]!.colorKey),
+    );
+    for (const index of ordered.slice(1)) {
+      skus[index] = fallbackVariantSku(skuBase, variants[index]!);
+    }
+  }
+  return skus;
 }
 
 function validateCategoryVariants(usesSizes: boolean, variants: ReturnType<typeof normalizeVariant>[]) {
@@ -151,13 +179,14 @@ router.post("/", requireAuth, allowedRoles, async (request, response, next) => {
         update: { lastNumber: { increment: 1 } },
       });
       const skuBase = `AMA-${category.code}-${String(counter.lastNumber).padStart(4, "0")}`;
+      const variantSkus = variantSkusForNewProduct(skuBase, variants);
       return tx.product.create({
         data: {
           skuBase, name: parsed.data.name, description: parsed.data.description,
           history: normalizedVisible(parsed.data.history), categoryId: category.id,
           programId: program.id, creatorName: parsed.data.creatorName,
           createdById: request.authUser!.id,
-          variants: { create: variants.map((variant) => ({ ...variant, sku: variantSku(skuBase, variant), stock: 0 })) },
+          variants: { create: variants.map((variant, index) => ({ ...variant, sku: variantSkus[index]!, stock: 0 })) },
         },
         select: productFields,
       });
@@ -192,16 +221,32 @@ router.post("/:id/variants", requireAuth, allowedRoles, async (request, response
   const parsed = variantInput.safeParse(request.body);
   if (!id.success || !parsed.success) return response.status(400).json({ error: "Invalid request data." });
   const variant = normalizeVariant(parsed.data);
-  try {
-    const created = await prisma.$transaction(async (tx) => {
-      const product = await tx.product.findUnique({ where: { id: id.data }, include: { category: true } });
-      if (!product) throw new HttpError(404, "Product not found.");
-      validateCategoryVariants(product.category.usesSizes, [variant]);
-      return tx.productVariant.create({
-        data: { productId: product.id, ...variant, sku: variantSku(product.skuBase, variant), stock: 0 },
-        select: { id: true, sku: true, size: true, color: true, stock: true, minimumStock: true, active: true },
-      });
+  const createVariant = (forceFallback: boolean) => prisma.$transaction(async (tx) => {
+    const product = await tx.product.findUnique({ where: { id: id.data }, include: { category: true } });
+    if (!product) throw new HttpError(404, "Product not found.");
+    validateCategoryVariants(product.category.usesSizes, [variant]);
+    const duplicate = await tx.productVariant.findFirst({
+      where: { productId: product.id, sizeKey: variant.sizeKey, colorKey: variant.colorKey },
     });
+    if (duplicate) throw new HttpError(409, "Duplicate product variant.");
+    const shortSku = shortVariantSku(product.skuBase, variant);
+    const shortSkuExists = await tx.productVariant.findUnique({ where: { sku: shortSku } });
+    const sku = forceFallback || shortSkuExists
+      ? fallbackVariantSku(product.skuBase, variant)
+      : shortSku;
+    return tx.productVariant.create({
+      data: { productId: product.id, ...variant, sku, stock: 0 },
+      select: { id: true, sku: true, size: true, color: true, stock: true, minimumStock: true, active: true },
+    });
+  });
+  try {
+    let created;
+    try {
+      created = await createVariant(false);
+    } catch (error) {
+      if (!isPrismaCode(error, "P2002")) throw error;
+      created = await createVariant(true);
+    }
     return response.status(201).json({ variant: created });
   } catch (error) { return sendError(error, response, next); }
 });
