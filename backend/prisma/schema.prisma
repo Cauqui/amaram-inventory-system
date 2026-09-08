@@ -128,17 +128,18 @@ model ProductImage {
 }
 
 model InventoryMovement {
-  id          String                @id @default(uuid()) @db.Uuid
-  variantId   String                @map("variant_id") @db.Uuid
-  userId      String                @map("user_id") @db.Uuid
-  type        InventoryMovementType
-  quantity    Int
-  stockBefore Int                   @map("stock_before")
-  stockAfter  Int                   @map("stock_after")
-  reason      String                @db.Text
-  createdAt   DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  variant     ProductVariant        @relation(fields: [variantId], references: [id], onDelete: Restrict)
-  user        User                  @relation("MovementUser", fields: [userId], references: [id], onDelete: Restrict)
+  id             String                @id @default(uuid()) @db.Uuid
+  idempotencyKey String                @unique @map("idempotency_key") @db.VarChar(128)
+  variantId      String                @map("variant_id") @db.Uuid
+  userId         String                @map("user_id") @db.Uuid
+  type           InventoryMovementType
+  quantity       Int
+  stockBefore    Int                   @map("stock_before")
+  stockAfter     Int                   @map("stock_after")
+  reason         String                @db.Text
+  createdAt      DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  variant        ProductVariant        @relation(fields: [variantId], references: [id], onDelete: Restrict)
+  user           User                  @relation("MovementUser", fields: [userId], references: [id], onDelete: Restrict)
 
   @@index([variantId, createdAt(sort: Desc)])
   @@index([userId, createdAt(sort: Desc)])

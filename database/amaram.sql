@@ -80,6 +80,7 @@ CREATE TABLE product_images (
 
 CREATE TABLE inventory_movements (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  idempotency_key varchar(128) NOT NULL UNIQUE,
   variant_id uuid NOT NULL REFERENCES product_variants(id) ON DELETE RESTRICT,
   user_id uuid NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
   type inventory_movement_type NOT NULL,

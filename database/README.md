@@ -14,7 +14,8 @@ archivo SQL de referencia no debe ejecutarse manualmente.
 - `product_variants` representa cada combinación normalizada de talla y color.
 - `product_images` almacena referencias de Cloudinary, nunca binarios.
 - `inventory_movements` conserva el usuario, variante, saldos, cantidad, tipo,
-  motivo y fecha de cada operación.
+  motivo, fecha y una clave de idempotencia única para evitar aplicaciones
+  duplicadas del mismo movimiento.
 - `sku_counters` conserva el último número utilizado por cada categoría.
 
 Las claves foráneas protegen los registros relacionados. Las imágenes se
@@ -36,6 +37,10 @@ no negativos y su efecto:
 El historial no se elimina. Las correcciones se registran mediante movimientos
 nuevos. Los estados disponible, bajo stock y sin stock se calcularán usando
 `stock` y `minimum_stock`.
+
+Cada cambio de stock se ejecuta en una transacción que bloquea la fila de la
+variante. `idempotency_key` identifica una operación lógica: repetirla devuelve
+el movimiento existente y no vuelve a modificar el saldo.
 
 ## SKU
 
