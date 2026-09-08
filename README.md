@@ -6,12 +6,13 @@
 - backend/: API Node.js + Express + TypeScript.
 - database/: reservado para documentacion y recursos de base de datos.
 
-El esquema esta en backend/prisma/schema.prisma. No contiene modelos.
-No se han creado migraciones, tablas ni seed.
+El esquema esta en backend/prisma/schema.prisma. Prisma Migrate administra las
+migraciones y el seed inicial de categorias, programas y usuarios bootstrap.
 
 ## Backend
 
-Usar Node.js 24 LTS y npm. Ejecutar desde backend/.
+Usar Node.js 22 LTS o una version posterior compatible con `engines`, y npm.
+Ejecutar desde backend/.
 En PowerShell usar npm.cmd si la politica local bloquea npm.ps1.
 Para reproducir las dependencias en otro equipo: npm.cmd ci.
 
@@ -25,6 +26,9 @@ Editar .env:
 
 ~~~dotenv
 DATABASE_URL="postgresql://USUARIO:CONTRASENA_CODIFICADA@localhost:5432/amaram_inventario_db?schema=public"
+NODE_ENV=development
+PORT=3000
+CORS_ORIGIN=http://localhost:8443
 SESSION_SECRET=
 CLOUDINARY_CLOUD_NAME=
 CLOUDINARY_API_KEY=
@@ -33,8 +37,11 @@ CLOUDINARY_API_SECRET=
 
 Sustituir las credenciales de ejemplo por las locales. Codificar como componente
 de URL los caracteres especiales de la contrasena. No subir .env a Git.
-Las variables de sesiones y Cloudinary quedan vacias en esta etapa.
-PORT es opcional (3000 por defecto). Health funciona sin DATABASE_URL.
+SESSION_SECRET debe tener al menos 32 caracteres. PORT es opcional y usa 3000
+por defecto. En produccion, CORS_ORIGIN debe contener el origen exacto del
+frontend. Las variables Cloudinary son necesarias para gestionar imagenes.
+Las contrasenas de usuarios bootstrap usadas por el seed deben contener al
+menos 12 caracteres y no se reemplazan si el usuario ya existe.
 
 ~~~powershell
 npm.cmd run dev
@@ -49,17 +56,14 @@ tiempo en el mismo puerto.
 GET http://localhost:3000/api/v1/health
 
 ~~~json
-{"status":"ok","service":"AMARAM API"}
+{"status":"ok","service":"AMARAM API","database":"connected"}
 ~~~
 
-Health verifica la API, no PostgreSQL.
-CORS permite http://localhost:8443, el origen local del frontend.
+Health verifica la API y PostgreSQL. CORS usa CORS_ORIGIN; el ejemplo local es
+http://localhost:8443.
 
 ## Prisma
 
 prisma.config.ts lee DATABASE_URL del entorno. El esquema declara PostgreSQL
-y el generador prisma-client con salida src/generated/prisma.
-src/db/prisma.ts prepara el adaptador de forma diferida, sin abrir conexiones
-durante el arranque. PrismaClient se incorporara y generara con los primeros
-modelos autorizados. Los scripts no generan cliente ni ejecutan migraciones.
-No ejecutar migrate, db push, db pull ni seed durante esta etapa.
+y el generador prisma-client con salida src/generated/prisma. En produccion se
+debe ejecutar `prisma migrate deploy`; no usar `migrate reset` ni `db push`.

@@ -21,7 +21,7 @@ if (env.NODE_ENV === "production") {
 }
 
 app.use(helmet());
-app.use(cors({ origin: "http://localhost:8443", credentials: true }));
+app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
 app.use(express.json({ limit: "100kb" }));
 app.use(sessionMiddleware);
 
@@ -54,11 +54,23 @@ app.use("/api/v1/reports", reportsRouter);
 
 app.use(
   (
-    _error: unknown,
+    error: unknown,
     _request: express.Request,
     response: express.Response,
     _next: express.NextFunction,
   ) => {
+    if (typeof error === "object" && error !== null) {
+      const details = error as { status?: unknown; statusCode?: unknown; type?: unknown };
+      const status = details.status ?? details.statusCode;
+
+      if (status === 400 && details.type === "entity.parse.failed") {
+        return response.status(400).json({ error: "Invalid request data." });
+      }
+      if (status === 413 && details.type === "entity.too.large") {
+        return response.status(413).json({ error: "Request body must not exceed 100 KB." });
+      }
+    }
+
     response.status(500).json({ error: "Internal server error." });
   },
 );

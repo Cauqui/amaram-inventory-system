@@ -10,6 +10,12 @@ class MissingSeedVariableError extends Error {
   }
 }
 
+class InvalidSeedPasswordError extends Error {
+  constructor(readonly variableName: string) {
+    super(variableName);
+  }
+}
+
 function requiredEnvironmentVariable(variableName: string): string {
   const value = process.env[variableName]?.trim();
 
@@ -22,6 +28,12 @@ function requiredEnvironmentVariable(variableName: string): string {
 
 function normalizedEmail(variableName: string): string {
   return requiredEnvironmentVariable(variableName).toLowerCase();
+}
+
+function seedPassword(variableName: string): string {
+  const value = requiredEnvironmentVariable(variableName);
+  if (value.length < 12) throw new InvalidSeedPasswordError(variableName);
+  return value;
 }
 
 const categories = [
@@ -76,7 +88,7 @@ function getInitialUsers(): InitialUser[] {
   return initialUsers.map((user) => {
     const name = requiredEnvironmentVariable(`${user.prefix}_NAME`);
     const email = normalizedEmail(`${user.prefix}_EMAIL`);
-    const password = requiredEnvironmentVariable(`${user.prefix}_PASSWORD`);
+    const password = seedPassword(`${user.prefix}_PASSWORD`);
 
     return { name, email, password, role: user.role };
   });
@@ -113,6 +125,8 @@ main()
   .catch((error: unknown) => {
     if (error instanceof MissingSeedVariableError) {
       console.error(`Seed failed: missing required environment variable ${error.variableName}.`);
+    } else if (error instanceof InvalidSeedPasswordError) {
+      console.error(`Seed failed: ${error.variableName} must contain at least 12 characters.`);
     } else {
       console.error("Seed failed.");
     }

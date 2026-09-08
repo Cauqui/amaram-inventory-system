@@ -7,6 +7,11 @@ import { env } from "../config/env.js";
 import { prisma } from "../db/prisma.js";
 
 const router = Router();
+router.use((_request, response, next) => {
+  response.setHeader("Cache-Control", "no-store");
+  return next();
+});
+
 const loginSchema = z
   .object({
     email: z.string().trim().toLowerCase().email().max(320),
