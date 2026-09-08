@@ -28,6 +28,58 @@ export type ApiProgram = {
   updatedAt: string;
 };
 
+export type ApiProductVariant = {
+  id: string;
+  sku: string;
+  size: string | null;
+  color: string | null;
+  stock: number;
+  minimumStock: number;
+  active: boolean;
+};
+
+export type ApiProductImage = {
+  id: string;
+  publicId: string;
+  secureUrl: string;
+  position: number;
+  width: number | null;
+  height: number | null;
+  createdAt: string;
+};
+
+export type ApiProduct = {
+  id: string;
+  skuBase: string;
+  name: string;
+  description: string;
+  history: string | null;
+  creatorName: string;
+  active: boolean;
+  category: Pick<ApiCategory, "id" | "name" | "code" | "usesSizes" | "active">;
+  program: Pick<ApiProgram, "id" | "name" | "description" | "active">;
+  variants: ApiProductVariant[];
+  images: ApiProductImage[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ProductVariantInput = {
+  size: string | null;
+  color: string | null;
+  minimumStock: number;
+};
+
+export type CreateProductInput = {
+  name: string;
+  description: string;
+  history: string | null;
+  categoryId: string;
+  programId: string;
+  creatorName: string;
+  variants: ProductVariantInput[];
+};
+
 type ApiErrorPayload = { error?: string };
 
 export class ApiError extends Error {
@@ -118,6 +170,46 @@ export const programsApi = {
       method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(data),
+    });
+  },
+};
+
+export const productsApi = {
+  list(filters: { search?: string; categoryId?: string; programId?: string; active?: boolean } = {}) {
+    const query = new URLSearchParams();
+    if (filters.search) query.set("search", filters.search);
+    if (filters.categoryId) query.set("categoryId", filters.categoryId);
+    if (filters.programId) query.set("programId", filters.programId);
+    if (filters.active !== undefined) query.set("active", String(filters.active));
+    const suffix = query.size ? `?${query.toString()}` : "";
+    return request<{ products: ApiProduct[] }>(`/products${suffix}`);
+  },
+
+  get(id: string) {
+    return request<{ product: ApiProduct }>(`/products/${id}`);
+  },
+
+  create(data: CreateProductInput) {
+    return request<{ product: ApiProduct }>("/products", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data),
+    });
+  },
+
+  update(id: string, data: Partial<Pick<CreateProductInput, "name" | "description" | "history" | "programId" | "creatorName">> & { active?: boolean }) {
+    return request<{ product: ApiProduct }>(`/products/${id}`, {
+      method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(data),
+    });
+  },
+
+  addVariant(productId: string, data: ProductVariantInput) {
+    return request<{ variant: ApiProductVariant }>(`/products/${productId}/variants`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data),
+    });
+  },
+
+  updateVariant(productId: string, variantId: string, data: Pick<ApiProductVariant, "minimumStock" | "active">) {
+    return request<{ variant: ApiProductVariant }>(`/products/${productId}/variants/${variantId}`, {
+      method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(data),
     });
   },
 };

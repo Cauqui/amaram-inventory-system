@@ -4,8 +4,9 @@ import {
   type User, type Category, type Program, type Product, type Movement, type ProductVariant,
 } from "./data";
 import {
-  ApiError, authApi, categoriesApi, programsApi,
-  type ApiCategory, type ApiProgram, type AuthenticatedUser,
+  ApiError, authApi, categoriesApi, productsApi, programsApi,
+  type ApiCategory, type ApiProduct, type ApiProductVariant, type ApiProgram,
+  type AuthenticatedUser, type ProductVariantInput,
 } from "./lib/api";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -848,6 +849,141 @@ function ProductDetailScreen({ product, onNavigate }: { product: Product; onNavi
 }
 
 // ─── Categories Screen ────────────────────────────────────────────────────────
+type ProductVisualStatus = "available" | "low_stock" | "out_of_stock" | "inactive";
+type VariantDraft = ProductVariantInput & { key: number };
+
+function apiMessage(error: unknown, fallback: string, onUnauthorized: () => void) {
+  if (error instanceof ApiError && error.status === 401) {
+    onUnauthorized();
+    return "La sesión expiró. Inicia sesión nuevamente.";
+  }
+  if (error instanceof ApiError && error.status === 409) return "La variante ya existe o su SKU está en uso.";
+  if (error instanceof ApiError && error.status === 404) return "El recurso solicitado ya no existe.";
+  return fallback;
+}
+
+function variantVisualStatus(variant: ApiProductVariant): ProductVisualStatus {
+  if (!variant.active) return "inactive";
+  if (variant.stock === 0) return "out_of_stock";
+  if (variant.stock <= variant.minimumStock) return "low_stock";
+  return "available";
+}
+
+function productVisualStatus(product: ApiProduct): ProductVisualStatus {
+  if (!product.active) return "inactive";
+  const statuses = product.variants.filter((variant) => variant.active).map(variantVisualStatus);
+  if (!statuses.length || statuses.every((status) => status === "out_of_stock")) return "out_of_stock";
+  if (statuses.some((status) => status === "low_stock" || status === "out_of_stock")) return "low_stock";
+  return "available";
+}
+
+function RealInventoryScreen({ onNavigate, onUnauthorized }: {
+  onNavigate: (screen: Screen, data?: unknown) => void; onUnauthorized: () => void;
+}) {
+  const [products, setProducts] = useState<ApiProduct[]>([]);
+  const [categories, setCategories] = useState<ApiCategory[]>([]);
+  const [programs, setPrograms] = useState<ApiProgram[]>([]);
+  const [search, setSearch] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [programId, setProgramId] = useState("");
+  const [status, setStatus] = useState("");
+  const [color, setColor] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    setLoading(true); setError("");
+    try {
+      const [productResult, categoryResult, programResult] = await Promise.all([
+        productsApi.list({ search: search.trim() || undefined, categoryId: categoryId || undefined, programId: programId || undefined, active: status === "inactive" ? false : undefined }),
+        categoriesApi.list(), programsApi.list(),
+      ]);
+      setProducts(productResult.products); setCategories(categoryResult.categories); setPrograms(programResult.programs);
+    } catch (requestError) { setError(apiMessage(requestError, "No se pudieron cargar los productos.", onUnauthorized)); }
+    finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); }, [search, categoryId, programId, status]);
+  const filtered = products.filter((product) => {
+    const matchesStatus = !status || productVisualStatus(product) === status;
+    const matchesColor = !color || product.variants.some((variant) => variant.color?.toLowerCase().includes(color.toLowerCase()));
+    return matchesStatus && matchesColor;
+  });
+
+  return <div className="flex-1 flex flex-col overflow-hidden">
+    <TopBar title="Inventario" subtitle={`${products.length} productos registrados`} actions={<div className="flex gap-2"><Btn variant="secondary" size="sm" onClick={() => void load()}>Recargar</Btn><Btn onClick={() => onNavigate("product-new")} variant="primary" size="sm"><Icon path={Icons.plus} size={14} />Nuevo producto</Btn></div>} />
+    <div className="px-6 py-3 border-b border-[#E2DDD7] bg-white flex items-center gap-3 flex-wrap">
+      <div className="relative flex-1 min-w-48"><Icon path={Icons.search} size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#6B6560]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por nombre, SKU, creadora..." className="w-full pl-8 pr-3 py-1.5 border border-[#E2DDD7] rounded text-sm outline-none focus:border-[#2D6A6A] transition-all bg-[#F5F3F0]" /></div>
+      <select value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="border border-[#E2DDD7] rounded px-2.5 py-1.5 text-sm text-[#6B6560] bg-[#F5F3F0]"><option value="">Categoría</option>{categories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+      <select value={programId} onChange={(event) => setProgramId(event.target.value)} className="border border-[#E2DDD7] rounded px-2.5 py-1.5 text-sm text-[#6B6560] bg-[#F5F3F0]"><option value="">Programa</option>{programs.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+      <select value={status} onChange={(event) => setStatus(event.target.value)} className="border border-[#E2DDD7] rounded px-2.5 py-1.5 text-sm text-[#6B6560] bg-[#F5F3F0]"><option value="">Estado</option><option value="available">Disponible</option><option value="low_stock">Stock bajo</option><option value="out_of_stock">Sin stock</option><option value="inactive">Inactivo</option></select>
+      <input value={color} onChange={(event) => setColor(event.target.value)} placeholder="Color" className="border border-[#E2DDD7] rounded px-2.5 py-1.5 text-sm text-[#6B6560] bg-[#F5F3F0] w-24" />
+      {(search || categoryId || programId || status || color) && <Btn variant="ghost" size="sm" onClick={() => { setSearch(""); setCategoryId(""); setProgramId(""); setStatus(""); setColor(""); }}>Limpiar</Btn>}
+    </div>
+    <div className="flex-1 overflow-y-auto"><table className="w-full text-sm border-collapse"><thead className="bg-[#F5F3F0] sticky top-0 z-10"><tr>{["Foto", "SKU", "Producto", "Categoría", "Talla", "Color", "Programa/Taller", "Creadora", "Stock", "Estado", "Acciones"].map((header) => <th key={header} className="text-left px-4 py-3 text-xs font-medium text-[#6B6560] uppercase tracking-wide border-b border-[#E2DDD7]">{header}</th>)}</tr></thead><tbody className="divide-y divide-[#E2DDD7]">
+      {loading && <tr><td colSpan={11} className="text-center py-12 text-[#6B6560] text-sm">Cargando productos...</td></tr>}
+      {!loading && error && <tr><td colSpan={11} className="text-center py-12 text-[#C62828] text-sm">{error}</td></tr>}
+      {!loading && !error && filtered.length === 0 && <tr><td colSpan={11} className="text-center py-12 text-[#6B6560] text-sm">No se encontraron productos</td></tr>}
+      {!loading && !error && filtered.map((product) => { const visualStatus = productVisualStatus(product); const stock = product.variants.reduce((sum, variant) => sum + variant.stock, 0); return <tr key={product.id} className="hover:bg-[#F5F3F0] transition-colors bg-white"><td className="px-4 py-2.5"><ProductPhoto src={product.images[0]?.secureUrl || ""} size={32} /></td><td className="px-4 py-2.5 font-mono text-xs text-[#6B6560]">{product.skuBase}</td><td className="px-4 py-2.5"><p className="font-medium text-[#1A1A1A] text-xs">{product.name}</p>{product.variants.length > 1 && <p className="text-[10px] text-[#6B6560]">{product.variants.length} variantes</p>}</td><td className="px-4 py-2.5 text-xs text-[#6B6560]">{product.category.name}</td><td className="px-4 py-2.5 text-xs text-[#6B6560]">{product.category.usesSizes ? [...new Set(product.variants.map((variant) => variant.size).filter(Boolean))].join(", ") : "—"}</td><td className="px-4 py-2.5 text-xs text-[#6B6560]">{[...new Set(product.variants.map((variant) => variant.color).filter(Boolean))].join(", ") || "—"}</td><td className="px-4 py-2.5 text-xs text-[#6B6560]">{product.program.name}</td><td className="px-4 py-2.5 text-xs text-[#6B6560]">{product.creatorName}</td><td className="px-4 py-2.5 text-xs font-semibold text-[#1A1A1A]">{stock}</td><td className="px-4 py-2.5"><Badge label={getStatusLabel(visualStatus)} color={getStatusColor(visualStatus)} /></td><td className="px-4 py-2.5"><div className="flex items-center gap-1"><Btn variant="ghost" size="sm" onClick={() => onNavigate("product-detail", product)} className="!px-2"><Icon path={Icons.eye} size={13} /></Btn><Btn variant="ghost" size="sm" onClick={() => onNavigate("product-edit", product)} className="!px-2"><Icon path={Icons.edit} size={13} /></Btn></div></td></tr>; })}
+    </tbody></table></div><div className="px-6 py-2 border-t border-[#E2DDD7] bg-white text-xs text-[#6B6560]">Mostrando {filtered.length} de {products.length} productos</div>
+  </div>;
+}
+
+function RealProductFormScreen({ editProduct, onSaved, onNavigate, onUnauthorized }: {
+  editProduct?: ApiProduct; onSaved: (product: ApiProduct) => void; onNavigate: (screen: Screen) => void; onUnauthorized: () => void;
+}) {
+  const isEdit = !!editProduct;
+  const [categories, setCategories] = useState<ApiCategory[]>([]); const [programs, setPrograms] = useState<ApiProgram[]>([]);
+  const [name, setName] = useState(editProduct?.name || ""); const [description, setDescription] = useState(editProduct?.description || ""); const [history, setHistory] = useState(editProduct?.history || ""); const [creatorName, setCreatorName] = useState(editProduct?.creatorName || "");
+  const [categoryId, setCategoryId] = useState(editProduct?.category.id || ""); const [programId, setProgramId] = useState(editProduct?.program.id || ""); const [active, setActive] = useState(editProduct?.active ?? true);
+  const [variants, setVariants] = useState<VariantDraft[]>([{ key: 1, size: null, color: null, minimumStock: 0 }]); const [error, setError] = useState(""); const [saving, setSaving] = useState(false);
+  useEffect(() => { Promise.all([categoriesApi.list(), programsApi.list()]).then(([a, b]) => { setCategories(a.categories); setPrograms(b.programs); }).catch((requestError) => setError(apiMessage(requestError, "No se pudieron cargar los catálogos.", onUnauthorized))); }, []);
+  const selectedCategory = categories.find((category) => category.id === categoryId) || editProduct?.category;
+  const updateVariant = (key: number, changes: Partial<VariantDraft>) => setVariants((items) => items.map((item) => item.key === key ? { ...item, ...changes } : item));
+  const submit = async () => {
+    setError("");
+    const normalized = variants.map(({ size, color, minimumStock }) => ({ size: selectedCategory?.usesSizes ? size?.trim() || null : null, color: color?.trim() || null, minimumStock }));
+    const duplicateKeys = normalized.map((variant) => `${variant.size?.trim().toUpperCase() || "UNI"}:${variant.color?.trim().toUpperCase() || "STD"}`);
+    if (!name.trim() || !description.trim() || !creatorName.trim() || !programId || (!isEdit && !categoryId)) return setError("Completa los campos obligatorios.");
+    if (!isEdit && selectedCategory?.usesSizes && normalized.some((variant) => !variant.size)) return setError("La talla es obligatoria para esta categoría.");
+    if (!isEdit && new Set(duplicateKeys).size !== duplicateKeys.length) return setError("Hay variantes duplicadas.");
+    setSaving(true);
+    try {
+      const result = isEdit
+        ? await productsApi.update(editProduct.id, { name, description, history: history.trim() || null, programId, creatorName, active })
+        : await productsApi.create({ name, description, history: history.trim() || null, categoryId, programId, creatorName, variants: normalized });
+      onSaved(result.product);
+    } catch (requestError) { setError(apiMessage(requestError, "No se pudo guardar el producto.", onUnauthorized)); }
+    finally { setSaving(false); }
+  };
+  const availableCategories = categories.filter((item) => item.active || item.id === categoryId); const availablePrograms = programs.filter((item) => item.active || item.id === programId);
+  return <div className="flex-1 flex flex-col overflow-hidden"><TopBar title={isEdit ? "Editar producto" : "Nuevo producto"} subtitle={isEdit ? editProduct.name : "Registro de nuevo producto"} actions={<div className="flex gap-2"><Btn variant="secondary" onClick={() => onNavigate("inventory")}>Cancelar</Btn><Btn variant="primary" onClick={() => void submit()}><Icon path={Icons.check} size={14} />{saving ? "Guardando..." : isEdit ? "Guardar cambios" : "Registrar producto"}</Btn></div>} />
+    <div className="flex-1 overflow-y-auto p-6"><div className="max-w-3xl mx-auto space-y-6">
+      {error && <div className="bg-[#FFEBEE] border border-[#C62828] text-[#C62828] rounded px-4 py-3 text-sm">{error}</div>}
+      <div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm"><div className="px-5 py-4 border-b border-[#E2DDD7]"><h3 className="text-sm font-semibold text-[#1A1A1A]">Información básica</h3></div><div className="p-5 grid grid-cols-2 gap-4"><div className="col-span-2"><Input label="Nombre del producto" value={name} onChange={setName} required /></div>
+        <div className="flex flex-col gap-1"><label className="text-xs font-medium text-[#6B6560] uppercase tracking-wide">Categoría *</label><select disabled={isEdit} value={categoryId} onChange={(event) => { setCategoryId(event.target.value); setVariants((items) => items.map((item) => ({ ...item, size: null }))); }} className="border border-[#E2DDD7] rounded px-3 py-2 text-sm bg-white disabled:bg-[#F5F3F0] disabled:text-[#6B6560]"><option value="">— Seleccionar —</option>{availableCategories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{isEdit && <span className="text-[10px] text-[#6B6560]">La categoría no puede cambiarse después de generar el SKU.</span>}</div>
+        <Select label="Programa / Taller" value={programId} onChange={setProgramId} required options={availablePrograms.map((item) => ({ value: item.id, label: item.name }))} /><div className="col-span-2"><Input label="Creadora / Diseñadora" value={creatorName} onChange={setCreatorName} required /></div><div className="col-span-2"><Textarea label="Descripción del producto" value={description} onChange={setDescription} rows={2} /></div><div className="col-span-2"><Textarea label="Historia del producto" value={history} onChange={setHistory} rows={3} /></div>{isEdit && <label className="col-span-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} className="accent-[#2D6A6A]" />Producto activo</label>}</div></div>
+      <div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm"><div className="px-5 py-4 border-b border-[#E2DDD7]"><h3 className="text-sm font-semibold text-[#1A1A1A]">Fotografía del producto</h3></div><div className="p-5 flex items-center gap-5"><div className="w-28 h-28 rounded-lg border-2 border-dashed border-[#E2DDD7] bg-[#F5F3F0] flex items-center justify-center"><Icon path={Icons.package} size={24} className="text-[#6B6560]" /></div><p className="text-xs text-[#6B6560]">La carga de fotografías se habilitará con Cloudinary en una etapa posterior.</p></div></div>
+      {!isEdit && <div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm"><div className="px-5 py-4 border-b border-[#E2DDD7] flex justify-between"><div><h3 className="text-sm font-semibold text-[#1A1A1A]">Variantes {selectedCategory?.usesSizes ? "(talla + color)" : "(color)"}</h3><p className="text-[10px] text-[#6B6560] mt-0.5">El backend genera el SKU; el stock inicial será 0</p></div><Btn variant="secondary" size="sm" onClick={() => setVariants((items) => [...items, { key: Date.now(), size: null, color: null, minimumStock: 0 }])}><Icon path={Icons.plus} size={13} />Agregar variante</Btn></div><div className="p-5 space-y-3">{variants.map((variant) => <div key={variant.key} className="grid gap-3 p-3 bg-[#F5F3F0] rounded-lg border border-[#E2DDD7]" style={{ gridTemplateColumns: selectedCategory?.usesSizes ? "1fr 1fr 1fr 1fr auto" : "1fr 1fr 1fr auto" }}><div><label className="text-[10px] font-medium text-[#6B6560] uppercase tracking-wide block mb-1">SKU</label><div className="border border-[#E2DDD7] rounded px-2.5 py-1.5 text-xs font-mono text-[#6B6560] bg-white">Generado al guardar</div></div>{selectedCategory?.usesSizes && <div><label className="text-[10px] font-medium text-[#6B6560] uppercase tracking-wide block mb-1">Talla</label><input value={variant.size || ""} onChange={(event) => updateVariant(variant.key, { size: event.target.value })} className="w-full border border-[#E2DDD7] rounded px-2.5 py-1.5 text-xs bg-white" /></div>}<div><label className="text-[10px] font-medium text-[#6B6560] uppercase tracking-wide block mb-1">Color</label><input value={variant.color || ""} onChange={(event) => updateVariant(variant.key, { color: event.target.value })} className="w-full border border-[#E2DDD7] rounded px-2.5 py-1.5 text-xs bg-white" /></div><div><label className="text-[10px] font-medium text-[#6B6560] uppercase tracking-wide block mb-1">Stock mínimo</label><input type="number" min={0} value={variant.minimumStock} onChange={(event) => updateVariant(variant.key, { minimumStock: Number(event.target.value) })} className="w-full border border-[#E2DDD7] rounded px-2.5 py-1.5 text-xs bg-white" /></div><div className="flex items-end">{variants.length > 1 && <button onClick={() => setVariants((items) => items.filter((item) => item.key !== variant.key))} className="p-1.5 text-[#C62828] hover:bg-[#FFEBEE] rounded"><Icon path={Icons.x} size={14} /></button>}</div></div>)}</div></div>}
+    </div></div>
+  </div>;
+}
+
+function RealProductDetailScreen({ productId, onNavigate, onUnauthorized }: { productId: string; onNavigate: (screen: Screen, data?: unknown) => void; onUnauthorized: () => void }) {
+  const [product, setProduct] = useState<ApiProduct | null>(null); const [error, setError] = useState(""); const [variantModal, setVariantModal] = useState(false); const [editing, setEditing] = useState<ApiProductVariant | null>(null); const [variant, setVariant] = useState<ProductVariantInput>({ size: null, color: null, minimumStock: 0 }); const [variantActive, setVariantActive] = useState(true);
+  const load = async () => { try { const result = await productsApi.get(productId); setProduct(result.product); } catch (requestError) { setError(apiMessage(requestError, "No se pudo cargar el producto.", onUnauthorized)); } };
+  useEffect(() => { void load(); }, [productId]);
+  const openNew = () => { setEditing(null); setVariant({ size: null, color: null, minimumStock: 0 }); setVariantActive(true); setVariantModal(true); };
+  const openEdit = (item: ApiProductVariant) => { setEditing(item); setVariant({ size: item.size, color: item.color, minimumStock: item.minimumStock }); setVariantActive(item.active); setVariantModal(true); };
+  const saveVariant = async () => { if (!product) return; setError(""); try { if (editing) await productsApi.updateVariant(product.id, editing.id, { minimumStock: variant.minimumStock, active: variantActive }); else await productsApi.addVariant(product.id, { size: product.category.usesSizes ? variant.size?.trim() || null : null, color: variant.color?.trim() || null, minimumStock: variant.minimumStock }); setVariantModal(false); await load(); } catch (requestError) { setError(apiMessage(requestError, "No se pudo guardar la variante.", onUnauthorized)); } };
+  if (!product) return <div className="flex-1 flex items-center justify-center text-sm text-[#6B6560]">{error || "Cargando producto..."}</div>;
+  const status = productVisualStatus(product);
+  return <div className="flex-1 flex flex-col overflow-hidden"><TopBar title="Detalle del producto" subtitle={product.name} actions={<div className="flex gap-2"><Btn variant="ghost" size="sm" onClick={() => onNavigate("inventory")}><Icon path={Icons.back} size={14} />Volver</Btn><Btn variant="secondary" size="sm" onClick={openNew}><Icon path={Icons.plus} size={14} />Agregar variante</Btn><Btn variant="primary" size="sm" onClick={() => onNavigate("product-edit", product)}><Icon path={Icons.edit} size={14} />Editar</Btn></div>} />
+    <div className="flex-1 overflow-y-auto p-6"><div className="max-w-3xl mx-auto space-y-5">{error && <div className="bg-[#FFEBEE] border border-[#C62828] text-[#C62828] rounded px-4 py-3 text-sm">{error}</div>}<div className="grid grid-cols-3 gap-5"><div className="bg-white rounded-lg border border-[#E2DDD7] p-4 shadow-sm flex flex-col items-center gap-3">{product.images[0] ? <img src={product.images[0].secureUrl} alt={product.name} className="w-full aspect-square object-cover rounded-lg bg-[#F5F3F0]" /> : <div className="w-full aspect-square rounded-lg bg-[#F5F3F0] flex items-center justify-center"><Icon path={Icons.package} size={32} className="text-[#6B6560]" /></div>}<Badge label={getStatusLabel(status)} color={getStatusColor(status)} /></div><div className="col-span-2 bg-white rounded-lg border border-[#E2DDD7] p-5 shadow-sm space-y-4"><div><h2 className="text-xl font-semibold text-[#1A1A1A]" style={{ fontFamily: "var(--font-display)" }}>{product.name}</h2><p className="font-mono text-xs text-[#6B6560] mt-1">{product.skuBase}</p></div><div className="grid grid-cols-2 gap-3 text-sm"><div><p className="text-[10px] uppercase text-[#6B6560]">Categoría</p><p>{product.category.name}</p></div><div><p className="text-[10px] uppercase text-[#6B6560]">Programa</p><p>{product.program.name}</p></div><div><p className="text-[10px] uppercase text-[#6B6560]">Creadora</p><p>{product.creatorName}</p></div><div><p className="text-[10px] uppercase text-[#6B6560]">Estado</p><p>{product.active ? "Activo" : "Inactivo"}</p></div></div><div><p className="text-[10px] uppercase text-[#6B6560]">Descripción</p><p className="text-sm">{product.description}</p></div>{product.history && <div><p className="text-[10px] uppercase text-[#6B6560]">Historia</p><p className="text-sm">{product.history}</p></div>}</div></div>
+      <div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm overflow-hidden"><div className="px-5 py-3.5 border-b border-[#E2DDD7]"><h3 className="text-sm font-semibold">Variantes</h3></div><table className="w-full text-sm"><thead className="bg-[#F5F3F0]"><tr>{["SKU", "Talla", "Color", "Stock", "Mínimo", "Estado", "Acciones"].map((header) => <th key={header} className="text-left px-5 py-3 text-xs font-medium text-[#6B6560] uppercase border-b border-[#E2DDD7]">{header}</th>)}</tr></thead><tbody className="divide-y divide-[#E2DDD7]">{product.variants.map((item) => { const itemStatus = variantVisualStatus(item); return <tr key={item.id}><td className="px-5 py-3 font-mono text-xs">{item.sku}</td><td className="px-5 py-3">{item.size || "—"}</td><td className="px-5 py-3">{item.color || "—"}</td><td className="px-5 py-3 font-semibold">{item.stock}</td><td className="px-5 py-3">{item.minimumStock}</td><td className="px-5 py-3"><Badge label={getStatusLabel(itemStatus)} color={getStatusColor(itemStatus)} /></td><td className="px-5 py-3"><Btn variant="ghost" size="sm" onClick={() => openEdit(item)}><Icon path={Icons.edit} size={13} /></Btn></td></tr>; })}</tbody></table></div></div></div>
+    {variantModal && <Modal title={editing ? "Editar variante" : "Agregar variante"} onClose={() => setVariantModal(false)}><div className="space-y-4">{product.category.usesSizes && <Input label="Talla" value={variant.size || ""} onChange={(size) => setVariant({ ...variant, size })} readOnly={!!editing} required />}<Input label="Color" value={variant.color || ""} onChange={(color) => setVariant({ ...variant, color })} readOnly={!!editing} /><Input label="Stock mínimo" type="number" value={String(variant.minimumStock)} onChange={(value) => setVariant({ ...variant, minimumStock: Number(value) })} />{editing && <><Input label="SKU" value={editing.sku} readOnly /><Input label="Stock" value={String(editing.stock)} readOnly /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={variantActive} onChange={(event) => setVariantActive(event.target.checked)} className="accent-[#2D6A6A]" />Variante activa</label></>}<div className="flex justify-end gap-2"><Btn variant="secondary" onClick={() => setVariantModal(false)}>Cancelar</Btn><Btn variant="primary" onClick={() => void saveVariant()}>Guardar</Btn></div></div></Modal>}
+  </div>;
+}
+
 /*function CategoriesScreen({ products, currentUser }: { products: Product[]; currentUser: AuthenticatedUser }) {
   const [showModal, setShowModal] = useState(false);
   const [newCat, setNewCat] = useState({ name: "", code: "", usesSizes: false });
@@ -1284,7 +1420,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [screen, setScreen] = useState<Screen>("login");
-  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedProduct, setSelectedProduct] = useState<ApiProduct | null>(null);
   const [products, setProducts] = useState<Product[]>(PRODUCTS);
   const [movements, setMovements] = useState<Movement[]>(MOVEMENTS);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
@@ -1319,7 +1455,7 @@ export default function App() {
 
   const navigate = (s: Screen, data?: unknown) => {
     if (data && typeof data === "object" && "name" in (data as object)) {
-      setSelectedProduct(data as Product);
+      setSelectedProduct(data as ApiProduct);
     }
     setScreen(s);
   };
@@ -1341,14 +1477,16 @@ export default function App() {
     }
   };
 
-  const handleSaveProduct = (p: Product) => {
-    setProducts(prev => {
-      const idx = prev.findIndex(x => x.id === p.id);
-      if (idx >= 0) { const next = [...prev]; next[idx] = p; return next; }
-      return [...prev, p];
-    });
+  const handleSaveProduct = (product: ApiProduct) => {
+    setSelectedProduct(product);
     showToast(screen === "product-edit" ? "Producto actualizado correctamente" : "Producto registrado correctamente");
-    setScreen("inventory");
+    setScreen("product-detail");
+  };
+
+  const handleUnauthorized = () => {
+    setCurrentUser(null);
+    setSelectedProduct(null);
+    setScreen("login");
   };
 
   const handleSaveMovement = (m: Movement) => {
@@ -1374,10 +1512,10 @@ export default function App() {
 
       <main className="flex-1 flex flex-col overflow-hidden">
         {screen === "dashboard" && <DashboardScreen onNavigate={navigate} products={products} />}
-        {screen === "inventory" && <InventoryScreen onNavigate={navigate} products={products} />}
-        {(screen === "product-new") && <ProductFormScreen onNavigate={navigate} onSave={handleSaveProduct} />}
-        {screen === "product-edit" && selectedProduct && <ProductFormScreen onNavigate={navigate} onSave={handleSaveProduct} editProduct={selectedProduct} />}
-        {screen === "product-detail" && selectedProduct && <ProductDetailScreen product={selectedProduct} onNavigate={navigate} />}
+        {screen === "inventory" && <RealInventoryScreen onNavigate={navigate} onUnauthorized={handleUnauthorized} />}
+        {(screen === "product-new") && <RealProductFormScreen onNavigate={navigate} onSaved={handleSaveProduct} onUnauthorized={handleUnauthorized} />}
+        {screen === "product-edit" && selectedProduct && <RealProductFormScreen onNavigate={navigate} onSaved={handleSaveProduct} onUnauthorized={handleUnauthorized} editProduct={selectedProduct} />}
+        {screen === "product-detail" && selectedProduct && <RealProductDetailScreen productId={selectedProduct.id} onNavigate={navigate} onUnauthorized={handleUnauthorized} />}
         {screen === "categories" && <CategoriesScreen products={products} currentUser={currentUser!} />}
         {screen === "programs" && <ProgramsScreen products={products} currentUser={currentUser!} />}
         {screen === "movements" && <MovementsScreen onNavigate={navigate} products={products} movements={movements} />}
