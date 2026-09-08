@@ -3,12 +3,23 @@ import { z } from "zod";
 
 const schema = z.object({
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
+  NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
 const result = schema.safeParse(process.env);
 if (!result.success) {
   throw new Error("PORT debe ser un entero entre 1 y 65535.");
 }
 export const env = result.data;
+
+export function getSessionSecret(): string {
+  const result = z.string().trim().min(1).safeParse(process.env.SESSION_SECRET);
+
+  if (!result.success) {
+    throw new Error("Configura SESSION_SECRET en backend/.env antes de usar sesiones.");
+  }
+
+  return result.data;
+}
 
 export function getDatabaseUrl(): string {
   const result = z.string().trim().min(1).safeParse(process.env.DATABASE_URL);

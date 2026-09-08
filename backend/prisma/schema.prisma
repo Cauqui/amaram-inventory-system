@@ -152,3 +152,13 @@ model SkuCounter {
 
   @@map("sku_counters")
 }
+
+// Tabla técnica para sesiones persistentes de express-session/connect-pg-simple.
+model UserSession {
+  sid    String   @id @db.VarChar(255)
+  sess   Json     @db.JsonB
+  expire DateTime @db.Timestamp(6)
+
+  @@index([expire])
+  @@map("user_sessions")
+}

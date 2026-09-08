@@ -1,8 +1,11 @@
 import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "../generated/prisma/client.js";
 import { getDatabaseUrl } from "../config/env.js";
 
-// Conexion preparada sin abrir conexiones durante el arranque de la API.
-// PrismaClient se incorporara cuando se autoricen los primeros modelos.
-export function createDatabaseAdapter(): PrismaPg {
-  return new PrismaPg({ connectionString: getDatabaseUrl() });
+const adapter = new PrismaPg({ connectionString: getDatabaseUrl() });
+
+export const prisma = new PrismaClient({ adapter });
+
+export async function disconnectPrisma(): Promise<void> {
+  await prisma.$disconnect();
 }

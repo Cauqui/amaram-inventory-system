@@ -1,6 +1,8 @@
 import { app } from "./app.js";
 import { env } from "./config/env.js";
+import { disconnectSessionStore } from "./config/session.js";
 import { disconnectDatabase } from "./db/health.js";
+import { disconnectPrisma } from "./db/prisma.js";
 
 const server = app.listen(env.PORT, () => {
   console.log(`AMARAM API: http://localhost:${env.PORT}/api/v1/health`);
@@ -18,7 +20,7 @@ async function shutdown() {
     clearTimeout(timeout);
     process.exitCode = error ? 1 : 0;
   });
-  await disconnectDatabase();
+  await Promise.all([disconnectDatabase(), disconnectPrisma(), disconnectSessionStore()]);
 }
 
 process.once("SIGINT", shutdown);
