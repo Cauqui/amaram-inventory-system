@@ -9,6 +9,7 @@ import { categoriesRouter } from "./modules/categories.js";
 import { programsRouter } from "./modules/programs.js";
 import { productsRouter } from "./modules/products.js";
 import { inventoryMovementsRouter } from "./modules/inventory-movements.js";
+import { dashboardRouter } from "./modules/dashboard.js";
 
 export const app = express();
 
@@ -45,6 +46,7 @@ app.use("/api/v1/categories", categoriesRouter);
 app.use("/api/v1/programs", programsRouter);
 app.use("/api/v1/products", productsRouter);
 app.use("/api/v1/inventory-movements", inventoryMovementsRouter);
+app.use("/api/v1/dashboard", dashboardRouter);
 
 app.use(
   (

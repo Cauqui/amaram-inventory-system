@@ -102,6 +102,29 @@ export type CreateInventoryMovementInput = {
   idempotencyKey: string;
 } & ({ type: "ENTRY" | "EXIT"; quantity: number } | { type: "ADJUSTMENT"; targetStock: number });
 
+export type ApiDashboard = {
+  metrics: {
+    totalProducts: number; activeProducts: number; totalVariants: number; totalStock: number;
+    lowStockVariants: number; outOfStockVariants: number;
+  };
+  movementStats: {
+    totalMovements: number; movementsToday: number; periodDays: number;
+    entryMovements: number; exitMovements: number; adjustmentMovements: number;
+  };
+  recentMovements: Array<{
+    id: string; type: InventoryMovementType; quantity: number; createdAt: string;
+    product: Pick<ApiProduct, "id" | "skuBase" | "name">;
+    variant: Pick<ApiProductVariant, "sku">;
+    user: Pick<AuthenticatedUser, "id" | "name">;
+  }>;
+  categoryStock: Array<{ categoryId: string; categoryName: string; productCount: number; variantCount: number; totalStock: number }>;
+  alerts: Array<{
+    product: Pick<ApiProduct, "id" | "skuBase" | "name"> & { category: { id: string; name: string } };
+    variant: Pick<ApiProductVariant, "id" | "sku">;
+    stock: number; minimumStock: number; status: "OUT_OF_STOCK" | "LOW_STOCK";
+  }>;
+};
+
 type ApiErrorPayload = { error?: string };
 
 export class ApiError extends Error {
@@ -250,5 +273,11 @@ export const inventoryMovementsApi = {
     return request<{ movement: ApiInventoryMovement; replayed?: boolean }>("/inventory-movements", {
       method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data),
     });
+  },
+};
+
+export const dashboardApi = {
+  get() {
+    return request<ApiDashboard>("/dashboard");
   },
 };

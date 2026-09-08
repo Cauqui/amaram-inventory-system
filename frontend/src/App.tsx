@@ -4,8 +4,8 @@ import {
   type User, type Category, type Program, type Product, type Movement, type ProductVariant,
 } from "./data";
 import {
-  ApiError, authApi, categoriesApi, inventoryMovementsApi, productsApi, programsApi,
-  type ApiCategory, type ApiInventoryMovement, type ApiProduct, type ApiProductVariant,
+  ApiError, authApi, categoriesApi, dashboardApi, inventoryMovementsApi, productsApi, programsApi,
+  type ApiCategory, type ApiDashboard, type ApiInventoryMovement, type ApiProduct, type ApiProductVariant,
   type ApiProgram, type AuthenticatedUser, type InventoryMovementType, type ProductVariantInput,
 } from "./lib/api";
 
@@ -984,6 +984,25 @@ function RealProductDetailScreen({ productId, onNavigate, onUnauthorized }: { pr
   </div>;
 }
 
+function RealDashboardScreen({ onNavigate, onUnauthorized }: { onNavigate: (screen: Screen, data?: unknown) => void; onUnauthorized: () => void }) {
+  const [dashboard, setDashboard] = useState<ApiDashboard | null>(null);
+  const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  const load = async () => { setLoading(true); setError(""); try { setDashboard(await dashboardApi.get()); } catch (requestError) { setError(apiMessage(requestError, "No se pudo cargar el dashboard.", onUnauthorized)); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, []);
+  if (loading) return <div className="flex-1 flex items-center justify-center text-sm text-[#6B6560]">Cargando dashboard...</div>;
+  if (!dashboard) return <div className="flex-1 flex flex-col items-center justify-center gap-3 text-sm text-[#C62828]"><span>{error || "No se pudo cargar el dashboard."}</span><Btn variant="secondary" onClick={() => void load()}>Reintentar</Btn></div>;
+  const { metrics, movementStats, recentMovements, alerts, categoryStock } = dashboard;
+  const quantity = (movement: ApiDashboard["recentMovements"][number]) => `${movement.type === "EXIT" || movement.quantity < 0 ? "" : "+"}${movement.type === "EXIT" ? -movement.quantity : movement.quantity}`;
+  const quantityColor = (movement: ApiDashboard["recentMovements"][number]) => movement.type === "EXIT" || movement.quantity < 0 ? "text-[#C62828]" : "text-[#2E7D32]";
+  return <div className="flex-1 flex flex-col overflow-hidden"><TopBar title="Dashboard" subtitle="Resumen general del inventario" actions={<div className="flex gap-2"><Btn variant="secondary" size="sm" onClick={() => void load()}>Recargar</Btn><Btn onClick={() => onNavigate("product-new")} variant="primary" size="sm"><Icon path={Icons.plus} size={14} />Nuevo producto</Btn></div>} />
+    <div className="flex-1 overflow-y-auto p-6 space-y-6"><div className="grid grid-cols-3 gap-4"><StatCard label="Total productos" value={metrics.totalProducts} icon={Icons.package} color="primary" /><StatCard label="Productos activos" value={metrics.activeProducts} icon={Icons.check} color="success" /><StatCard label="Variantes" value={metrics.totalVariants} icon={Icons.products} color="primary" /><StatCard label="Stock total" value={metrics.totalStock} icon={Icons.inventory} color="success" /><StatCard label="Stock bajo" value={metrics.lowStockVariants} icon={Icons.alert} color="warning" /><StatCard label="Sin stock" value={metrics.outOfStockVariants} icon={Icons.x} color="danger" /></div>
+      <div className="grid grid-cols-3 gap-6"><div className="col-span-2 bg-white rounded-lg border border-[#E2DDD7] overflow-hidden shadow-sm"><div className="flex items-center justify-between px-5 py-3.5 border-b border-[#E2DDD7]"><div><h3 className="text-sm font-semibold text-[#1A1A1A]">Movimientos recientes</h3><p className="text-[10px] text-[#6B6560]">{movementStats.totalMovements} totales · {movementStats.movementsToday} hoy · últimos {movementStats.periodDays} días: {movementStats.entryMovements} entradas, {movementStats.exitMovements} salidas, {movementStats.adjustmentMovements} ajustes</p></div><Btn variant="ghost" size="sm" onClick={() => onNavigate("movements")}>Ver todo</Btn></div><table className="w-full text-sm"><thead className="bg-[#F5F3F0]"><tr>{["Fecha", "Tipo", "SKU", "Producto", "Cantidad", "Usuario"].map((header) => <th key={header} className="text-left px-4 py-2.5 text-xs font-medium text-[#6B6560] uppercase tracking-wide">{header}</th>)}</tr></thead><tbody className="divide-y divide-[#E2DDD7]">{recentMovements.length === 0 && <tr><td colSpan={6} className="text-center py-8 text-xs text-[#6B6560]">No hay movimientos registrados</td></tr>}{recentMovements.map((movement) => <tr key={movement.id} className="hover:bg-[#F5F3F0] transition-colors"><td className="px-4 py-2 text-xs text-[#6B6560]">{new Date(movement.createdAt).toLocaleString("es-PE")}</td><td className="px-4 py-2"><Badge label={movementTypeLabel(movement.type)} color={movementTypeColor(movement.type)} /></td><td className="px-4 py-2 font-mono text-xs text-[#6B6560]">{movement.variant.sku}</td><td className="px-4 py-2 font-medium text-[#1A1A1A] text-xs">{movement.product.name}</td><td className={`px-4 py-2 text-xs font-semibold ${quantityColor(movement)}`}>{quantity(movement)}</td><td className="px-4 py-2 text-xs text-[#6B6560]">{movement.user.name}</td></tr>)}</tbody></table></div>
+        <div className="bg-white rounded-lg border border-[#E2DDD7] overflow-hidden shadow-sm"><div className="px-5 py-3.5 border-b border-[#E2DDD7]"><h3 className="text-sm font-semibold text-[#1A1A1A]">Alertas de inventario</h3></div><div className="p-4 space-y-2.5">{alerts.length === 0 && <p className="text-xs text-[#6B6560] py-4 text-center">Sin alertas activas</p>}{alerts.map((alert) => <div key={alert.variant.id} onClick={() => onNavigate("product-detail", alert.product)} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:opacity-80 ${alert.status === "OUT_OF_STOCK" ? "bg-[#FFEBEE] border-[#FFCDD2]" : "bg-[#FDF3E7] border-[#FDDCAA]"}`}><Icon path={Icons.alert} size={14} className={alert.status === "OUT_OF_STOCK" ? "text-[#C62828] mt-0.5 flex-shrink-0" : "text-[#C4813A] mt-0.5 flex-shrink-0"} /><div><p className="text-xs font-medium text-[#1A1A1A] leading-tight">{alert.product.name}</p><p className={`text-[10px] mt-0.5 ${alert.status === "OUT_OF_STOCK" ? "text-[#C62828]" : "text-[#C4813A]"}`}>{alert.status === "OUT_OF_STOCK" ? "Sin stock" : `Stock bajo (${alert.stock}/${alert.minimumStock})`}</p><p className="text-[10px] text-[#6B6560] font-mono">{alert.variant.sku}</p></div></div>)}</div></div></div>
+      <div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm"><div className="px-5 py-3.5 border-b border-[#E2DDD7]"><h3 className="text-sm font-semibold text-[#1A1A1A]">Stock por categoría</h3></div><div className="p-5 grid grid-cols-5 gap-4">{categoryStock.length === 0 && <p className="col-span-5 text-center text-xs text-[#6B6560]">No hay categorías disponibles</p>}{categoryStock.map((category) => <div key={category.categoryId} className="text-center"><p className="text-2xl font-bold text-[#2D6A6A]" style={{ fontFamily: "var(--font-display)" }}>{category.totalStock}</p><p className="text-xs text-[#6B6560] mt-0.5">{category.categoryName}</p><p className="text-[10px] text-[#6B6560]">{category.productCount} productos · {category.variantCount} variantes</p></div>)}</div></div>
+    </div>
+  </div>;
+}
+
 function movementTypeLabel(type: InventoryMovementType) {
   return type === "ENTRY" ? "Entrada" : type === "EXIT" ? "Salida" : "Ajuste";
 }
@@ -1569,7 +1588,7 @@ export default function App() {
       <Sidebar currentScreen={screen} onNavigate={navigate} currentUser={currentUser!} onLogout={handleLogout} />
 
       <main className="flex-1 flex flex-col overflow-hidden">
-        {screen === "dashboard" && <DashboardScreen onNavigate={navigate} products={products} />}
+        {screen === "dashboard" && <RealDashboardScreen onNavigate={navigate} onUnauthorized={handleUnauthorized} />}
         {screen === "inventory" && <RealInventoryScreen onNavigate={navigate} onUnauthorized={handleUnauthorized} />}
         {(screen === "product-new") && <RealProductFormScreen onNavigate={navigate} onSaved={handleSaveProduct} onUnauthorized={handleUnauthorized} />}
         {screen === "product-edit" && selectedProduct && <RealProductFormScreen onNavigate={navigate} onSaved={handleSaveProduct} onUnauthorized={handleUnauthorized} editProduct={selectedProduct} />}
