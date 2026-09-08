@@ -4,9 +4,9 @@ import {
   type User, type Category, type Program, type Product, type Movement, type ProductVariant,
 } from "./data";
 import {
-  ApiError, authApi, categoriesApi, productsApi, programsApi,
-  type ApiCategory, type ApiProduct, type ApiProductVariant, type ApiProgram,
-  type AuthenticatedUser, type ProductVariantInput,
+  ApiError, authApi, categoriesApi, inventoryMovementsApi, productsApi, programsApi,
+  type ApiCategory, type ApiInventoryMovement, type ApiProduct, type ApiProductVariant,
+  type ApiProgram, type AuthenticatedUser, type InventoryMovementType, type ProductVariantInput,
 } from "./lib/api";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -984,6 +984,64 @@ function RealProductDetailScreen({ productId, onNavigate, onUnauthorized }: { pr
   </div>;
 }
 
+function movementTypeLabel(type: InventoryMovementType) {
+  return type === "ENTRY" ? "Entrada" : type === "EXIT" ? "Salida" : "Ajuste";
+}
+
+function movementTypeColor(type: InventoryMovementType) {
+  return type === "ENTRY" ? "bg-[#E8F5E9] text-[#2E7D32]" : type === "EXIT" ? "bg-[#FFEBEE] text-[#C62828]" : "bg-[#E3F2FD] text-[#1565C0]";
+}
+
+function movementQuantity(movement: ApiInventoryMovement) {
+  const value = movement.type === "EXIT" ? -movement.quantity : movement.quantity;
+  return `${value > 0 ? "+" : ""}${value}`;
+}
+
+function movementQuantityColor(movement: ApiInventoryMovement) {
+  return movement.type === "ENTRY" || movement.quantity > 0 && movement.type === "ADJUSTMENT" ? "text-[#2E7D32]" : "text-[#C62828]";
+}
+
+function RealMovementsScreen({ onNavigate, onUnauthorized }: { onNavigate: (screen: Screen) => void; onUnauthorized: () => void }) {
+  const [type, setType] = useState<InventoryMovementType | "">("");
+  const [movements, setMovements] = useState<ApiInventoryMovement[]>([]);
+  const [loading, setLoading] = useState(true); const [error, setError] = useState("");
+  const load = async () => { setLoading(true); setError(""); try { const result = await inventoryMovementsApi.list({ type: type || undefined }); setMovements(result.movements); } catch (requestError) { setError(apiMessage(requestError, "No se pudo cargar el historial.", onUnauthorized)); } finally { setLoading(false); } };
+  useEffect(() => { void load(); }, [type]);
+  return <div className="flex-1 flex flex-col overflow-hidden"><TopBar title="Movimientos de inventario" subtitle="Historial de entradas, salidas y ajustes" actions={<div className="flex gap-2"><Btn variant="secondary" size="sm" onClick={() => void load()}>Recargar</Btn><Btn variant="primary" size="sm" onClick={() => onNavigate("movement-new")}><Icon path={Icons.plus} size={14} />Registrar movimiento</Btn></div>} />
+    <div className="px-6 py-3 border-b border-[#E2DDD7] bg-white flex items-center gap-3">{(["", "ENTRY", "EXIT", "ADJUSTMENT"] as const).map((item) => <button key={item} onClick={() => setType(item)} className={`px-3 py-1 rounded text-xs font-medium transition-all ${type === item ? "bg-[#2D6A6A] text-white" : "text-[#6B6560] hover:bg-[#F5F3F0]"}`}>{item === "" ? "Todos" : movementTypeLabel(item)}</button>)}</div>
+    <div className="flex-1 overflow-y-auto"><table className="w-full text-sm"><thead className="bg-[#F5F3F0] sticky top-0"><tr>{["Fecha", "Tipo", "SKU", "Producto", "Cantidad", "Stock", "Usuario", "Motivo"].map((header) => <th key={header} className="text-left px-5 py-3 text-xs font-medium text-[#6B6560] uppercase tracking-wide border-b border-[#E2DDD7]">{header}</th>)}</tr></thead><tbody className="divide-y divide-[#E2DDD7]">{loading && <tr><td colSpan={8} className="text-center py-12 text-[#6B6560] text-sm">Cargando movimientos...</td></tr>}{!loading && error && <tr><td colSpan={8} className="text-center py-12 text-[#C62828] text-sm">{error}</td></tr>}{!loading && !error && movements.length === 0 && <tr><td colSpan={8} className="text-center py-12 text-[#6B6560] text-sm">No hay movimientos registrados</td></tr>}{!loading && !error && movements.map((movement) => <tr key={movement.id} className="hover:bg-[#F5F3F0] transition-colors bg-white"><td className="px-5 py-3 text-xs text-[#6B6560]">{new Date(movement.createdAt).toLocaleString("es-PE")}</td><td className="px-5 py-3"><Badge label={movementTypeLabel(movement.type)} color={movementTypeColor(movement.type)} /></td><td className="px-5 py-3 font-mono text-xs text-[#6B6560]">{movement.variant.sku}</td><td className="px-5 py-3 text-xs font-medium text-[#1A1A1A]">{movement.product.name}</td><td className={`px-5 py-3 text-sm font-semibold ${movementQuantityColor(movement)}`}>{movementQuantity(movement)}</td><td className="px-5 py-3 text-xs text-[#6B6560]">{movement.stockBefore} → {movement.stockAfter}</td><td className="px-5 py-3 text-xs text-[#6B6560]">{movement.user.name}</td><td className="px-5 py-3 text-xs text-[#6B6560]">{movement.reason}</td></tr>)}</tbody></table></div><div className="px-6 py-2 border-t border-[#E2DDD7] bg-white text-xs text-[#6B6560]">{movements.length} movimientos</div>
+  </div>;
+}
+
+function RealNewMovementScreen({ onNavigate, onUnauthorized }: { onNavigate: (screen: Screen) => void; onUnauthorized: () => void }) {
+  const [products, setProducts] = useState<ApiProduct[]>([]); const [productId, setProductId] = useState(""); const [variantId, setVariantId] = useState(""); const [type, setType] = useState<InventoryMovementType>("ENTRY"); const [quantity, setQuantity] = useState("1"); const [targetStock, setTargetStock] = useState(""); const [reason, setReason] = useState(""); const [idempotencyKey, setIdempotencyKey] = useState(() => crypto.randomUUID()); const [saving, setSaving] = useState(false); const [error, setError] = useState(""); const [saved, setSaved] = useState(false);
+  useEffect(() => { productsApi.list({ active: true }).then((result) => setProducts(result.products)).catch((requestError) => setError(apiMessage(requestError, "No se pudieron cargar los productos.", onUnauthorized))); }, []);
+  const product = products.find((item) => item.id === productId); const variants = product?.variants.filter((item) => item.active) || []; const selectedVariant = variants.find((item) => item.id === variantId);
+  const selectProduct = (id: string) => { setProductId(id); setVariantId(""); setError(""); };
+  const submit = async () => {
+    setError(""); if (!selectedVariant || !reason.trim()) return setError("Selecciona una variante e ingresa un motivo.");
+    const parsedQuantity = Number(quantity); const parsedTarget = Number(targetStock);
+    if ((type === "ENTRY" || type === "EXIT") && (!Number.isInteger(parsedQuantity) || parsedQuantity <= 0)) return setError("La cantidad debe ser un entero mayor que cero.");
+    if (type === "EXIT" && parsedQuantity > selectedVariant.stock) return setError("Stock insuficiente para realizar la salida.");
+    if (type === "ADJUSTMENT" && (!Number.isInteger(parsedTarget) || parsedTarget < 0)) return setError("El stock físico debe ser un entero igual o mayor que cero.");
+    if (type === "ADJUSTMENT" && parsedTarget === selectedVariant.stock) return setError("El stock contado coincide con el stock registrado.");
+    setSaving(true);
+    try {
+      const data = type === "ADJUSTMENT" ? { variantId: selectedVariant.id, type, targetStock: parsedTarget, reason: reason.trim(), idempotencyKey } : { variantId: selectedVariant.id, type, quantity: parsedQuantity, reason: reason.trim(), idempotencyKey };
+      await inventoryMovementsApi.create(data); setSaved(true); setReason(""); setQuantity("1"); setTargetStock(""); setIdempotencyKey(crypto.randomUUID());
+    } catch (requestError) {
+      if (requestError instanceof ApiError && requestError.status === 422) setError("Stock insuficiente para realizar la salida.");
+      else if (requestError instanceof ApiError && requestError.status === 409) setError("El producto o variante ya no está disponible para movimientos.");
+      else if (requestError instanceof ApiError && requestError.status === 400 && type === "ADJUSTMENT") setError("El stock contado coincide con el stock registrado.");
+      else setError(apiMessage(requestError, "No se pudo registrar el movimiento.", onUnauthorized));
+    } finally { setSaving(false); }
+  };
+  if (saved) return <div className="flex-1 flex flex-col overflow-hidden"><TopBar title="Registrar movimiento" /><div className="flex-1 flex items-center justify-center"><div className="text-center"><div className="w-14 h-14 rounded-full bg-[#E8F5E9] flex items-center justify-center mx-auto mb-4"><Icon path={Icons.check} size={28} className="text-[#2E7D32]" /></div><h3 className="text-lg font-semibold text-[#1A1A1A] mb-1" style={{ fontFamily: "var(--font-display)" }}>Movimiento registrado</h3><p className="text-sm text-[#6B6560] mb-6">El movimiento se registró correctamente</p><div className="flex gap-2 justify-center"><Btn variant="secondary" onClick={() => onNavigate("movements")}>Ver movimientos</Btn><Btn variant="primary" onClick={() => onNavigate("inventory")}>Volver al inventario</Btn></div></div></div></div>;
+  return <div className="flex-1 flex flex-col overflow-hidden"><TopBar title="Registrar movimiento" subtitle="Entrada, salida o ajuste de stock" actions={<div className="flex gap-2"><Btn variant="secondary" onClick={() => onNavigate("movements")}>Cancelar</Btn><Btn variant="primary" onClick={() => void submit()} disabled={saving || !variantId || !reason.trim()}><Icon path={Icons.check} size={14} />{saving ? "Registrando..." : "Registrar"}</Btn></div>} />
+    <div className="flex-1 overflow-y-auto p-6"><div className="max-w-xl mx-auto"><div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm p-5 space-y-5">{error && <div className="bg-[#FFEBEE] border border-[#C62828] text-[#C62828] rounded px-3 py-2 text-sm">{error}</div>}<div><label className="text-xs font-medium text-[#6B6560] uppercase tracking-wide block mb-2">Tipo de movimiento *</label><div className="flex gap-2">{(["ENTRY", "EXIT", "ADJUSTMENT"] as const).map((item) => <button key={item} onClick={() => { setType(item); setError(""); }} className={`flex-1 py-2 rounded text-sm font-medium border transition-all ${type === item ? movementTypeColor(item) + " border-current" : "border-[#E2DDD7] text-[#6B6560] hover:bg-[#F5F3F0]"}`}>{movementTypeLabel(item)}</button>)}</div></div><Select label="Producto" value={productId} onChange={selectProduct} required options={products.map((item) => ({ value: item.id, label: `${item.name} — ${item.skuBase}` }))} />{product && <Select label="Variante" value={variantId} onChange={setVariantId} required options={variants.map((item) => ({ value: item.id, label: `${item.sku} — ${item.size ? `Talla ${item.size} — ` : ""}${item.color || "Sin color"} — Stock ${item.stock}` }))} />}{selectedVariant && <div className="bg-[#F5F3F0] rounded-lg p-3 text-xs"><p className="text-[#6B6560]">SKU: <span className="font-mono text-[#1A1A1A]">{selectedVariant.sku}</span></p><p className="text-[#6B6560] mt-1">Stock actual: <span className="font-bold text-[#1A1A1A]">{selectedVariant.stock} unidades</span></p></div>}{type === "ADJUSTMENT" ? <><p className="text-xs text-[#6B6560]">Stock registrado actualmente: <strong>{selectedVariant?.stock ?? 0}</strong></p><Input label="Stock físico contado" type="number" value={targetStock} onChange={setTargetStock} required /></> : <Input label={type === "ENTRY" ? "Cantidad de entrada" : "Cantidad de salida"} type="number" value={quantity} onChange={setQuantity} required />}<Textarea label="Motivo" value={reason} onChange={setReason} placeholder="Ej: Ingreso de nuevos productos, salida para feria, ajuste por daño..." rows={2} /><div className="bg-[#E8F4F4] rounded-lg p-3 text-xs text-[#2D6A6A]"><Icon path={Icons.alert} size={13} className="inline mr-1" />Todo movimiento queda registrado en el historial y no puede eliminarse.</div></div></div></div>
+  </div>;
+}
+
 /*function CategoriesScreen({ products, currentUser }: { products: Product[]; currentUser: AuthenticatedUser }) {
   const [showModal, setShowModal] = useState(false);
   const [newCat, setNewCat] = useState({ name: "", code: "", usesSizes: false });
@@ -1518,8 +1576,8 @@ export default function App() {
         {screen === "product-detail" && selectedProduct && <RealProductDetailScreen productId={selectedProduct.id} onNavigate={navigate} onUnauthorized={handleUnauthorized} />}
         {screen === "categories" && <CategoriesScreen products={products} currentUser={currentUser!} />}
         {screen === "programs" && <ProgramsScreen products={products} currentUser={currentUser!} />}
-        {screen === "movements" && <MovementsScreen onNavigate={navigate} products={products} movements={movements} />}
-        {screen === "movement-new" && <NewMovementScreen onNavigate={navigate} products={products} currentUser={currentUser!} onSave={handleSaveMovement} />}
+        {screen === "movements" && <RealMovementsScreen onNavigate={navigate} onUnauthorized={handleUnauthorized} />}
+        {screen === "movement-new" && <RealNewMovementScreen onNavigate={navigate} onUnauthorized={handleUnauthorized} />}
         {screen === "reports" && <ReportsScreen products={products} movements={movements} />}
         {screen === "settings" && <SettingsScreen />}
       </main>

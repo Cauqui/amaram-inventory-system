@@ -80,6 +80,28 @@ export type CreateProductInput = {
   variants: ProductVariantInput[];
 };
 
+export type InventoryMovementType = "ENTRY" | "EXIT" | "ADJUSTMENT";
+
+export type ApiInventoryMovement = {
+  id: string;
+  type: InventoryMovementType;
+  quantity: number;
+  stockBefore: number;
+  stockAfter: number;
+  reason: string;
+  createdAt: string;
+  variant: Pick<ApiProductVariant, "id" | "sku" | "size" | "color">;
+  product: Pick<ApiProduct, "id" | "skuBase" | "name">;
+  user: Pick<AuthenticatedUser, "id" | "name" | "email">;
+};
+
+export type CreateInventoryMovementInput = {
+  variantId: string;
+  type: InventoryMovementType;
+  reason: string;
+  idempotencyKey: string;
+} & ({ type: "ENTRY" | "EXIT"; quantity: number } | { type: "ADJUSTMENT"; targetStock: number });
+
 type ApiErrorPayload = { error?: string };
 
 export class ApiError extends Error {
@@ -210,6 +232,23 @@ export const productsApi = {
   updateVariant(productId: string, variantId: string, data: Pick<ApiProductVariant, "minimumStock" | "active">) {
     return request<{ variant: ApiProductVariant }>(`/products/${productId}/variants/${variantId}`, {
       method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(data),
+    });
+  },
+};
+
+export const inventoryMovementsApi = {
+  list(filters: { type?: InventoryMovementType; variantId?: string; productId?: string } = {}) {
+    const query = new URLSearchParams();
+    if (filters.type) query.set("type", filters.type);
+    if (filters.variantId) query.set("variantId", filters.variantId);
+    if (filters.productId) query.set("productId", filters.productId);
+    const suffix = query.size ? `?${query.toString()}` : "";
+    return request<{ movements: ApiInventoryMovement[] }>(`/inventory-movements${suffix}`);
+  },
+
+  create(data: CreateInventoryMovementInput) {
+    return request<{ movement: ApiInventoryMovement; replayed?: boolean }>("/inventory-movements", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(data),
     });
   },
 };
