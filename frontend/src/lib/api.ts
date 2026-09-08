@@ -40,6 +40,7 @@ export type ApiProductVariant = {
 
 export type ApiProductImage = {
   id: string;
+  productId: string;
   publicId: string;
   secureUrl: string;
   position: number;
@@ -47,6 +48,8 @@ export type ApiProductImage = {
   height: number | null;
   createdAt: string;
 };
+
+export type ApiProductImageSummary = Omit<ApiProductImage, "productId">;
 
 export type ApiProduct = {
   id: string;
@@ -59,7 +62,7 @@ export type ApiProduct = {
   category: Pick<ApiCategory, "id" | "name" | "code" | "usesSizes" | "active">;
   program: Pick<ApiProgram, "id" | "name" | "description" | "active">;
   variants: ApiProductVariant[];
-  images: ApiProductImage[];
+  images: ApiProductImageSummary[];
   createdAt: string;
   updatedAt: string;
 };
@@ -256,6 +259,25 @@ export const productsApi = {
     return request<{ variant: ApiProductVariant }>(`/products/${productId}/variants/${variantId}`, {
       method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(data),
     });
+  },
+};
+
+export const productImagesApi = {
+  list(productId: string) {
+    return request<{ images: ApiProductImage[] }>(`/products/${productId}/images`);
+  },
+
+  upload(productId: string, file: File) {
+    const formData = new FormData();
+    formData.append("image", file);
+    return request<{ image: ApiProductImage }>(`/products/${productId}/images`, {
+      method: "POST",
+      body: formData,
+    });
+  },
+
+  remove(productId: string, imageId: string) {
+    return request<void>(`/products/${productId}/images/${imageId}`, { method: "DELETE" });
   },
 };
 

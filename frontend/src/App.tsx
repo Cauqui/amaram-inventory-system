@@ -1,12 +1,12 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   USERS, CATEGORIES, PROGRAMS, PRODUCTS, MOVEMENTS,
   type User, type Category, type Program, type Product, type Movement, type ProductVariant,
 } from "./data";
 import {
-  ApiError, authApi, categoriesApi, dashboardApi, inventoryMovementsApi, productsApi, programsApi,
+  ApiError, authApi, categoriesApi, dashboardApi, inventoryMovementsApi, productImagesApi, productsApi, programsApi,
   type ApiCategory, type ApiDashboard, type ApiInventoryMovement, type ApiProduct, type ApiProductVariant,
-  type ApiProgram, type AuthenticatedUser, type InventoryMovementType, type ProductVariantInput,
+  type ApiProductImage, type ApiProgram, type AuthenticatedUser, type InventoryMovementType, type ProductVariantInput,
 } from "./lib/api";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -278,12 +278,11 @@ function TopBar({ title, subtitle, actions }: { title: string; subtitle?: string
 }
 
 // ─── Product Photo ────────────────────────────────────────────────────────────
-function ProductPhoto({ src, size = 32 }: { src: string; size?: number }) {
-  return (
-    <img src={src} alt="" width={size} height={size}
-      className="rounded object-cover bg-[#F5F3F0] flex-shrink-0"
-      style={{ width: size, height: size }} />
-  );
+function ProductPhoto({ src, alt, size = 32 }: { src?: string; alt: string; size?: number }) {
+  if (!src) {
+    return <div aria-label={`Sin imagen: ${alt}`} className="rounded bg-[#F5F3F0] flex items-center justify-center flex-shrink-0" style={{ width: size, height: size }}><Icon path={Icons.package} size={Math.max(13, Math.round(size * 0.48))} className="text-[#6B6560]" /></div>;
+  }
+  return <img src={src} alt={alt} width={size} height={size} className="rounded object-cover bg-[#F5F3F0] flex-shrink-0" style={{ width: size, height: size }} />;
 }
 
 // ─── Login Screen ─────────────────────────────────────────────────────────────
@@ -428,7 +427,7 @@ function DashboardScreen({ onNavigate, products }: { onNavigate: (s: Screen, dat
                   const stock = totalStock(p);
                   return (
                     <tr key={p.id} className="hover:bg-[#F5F3F0] cursor-pointer transition-colors" onClick={() => onNavigate("product-detail", p)}>
-                      <td className="px-4 py-2"><ProductPhoto src={p.photo} size={32} /></td>
+                      <td className="px-4 py-2"><ProductPhoto src={p.photo} alt={p.name} size={32} /></td>
                       <td className="px-4 py-2 font-mono text-xs text-[#6B6560]">{sku}</td>
                       <td className="px-4 py-2 font-medium text-[#1A1A1A] text-xs">{p.name}</td>
                       <td className="px-4 py-2 text-xs text-[#6B6560]">{cat?.name}</td>
@@ -563,7 +562,7 @@ function InventoryScreen({ onNavigate, products }: { onNavigate: (s: Screen, dat
               const stock = totalStock(p);
               return (
                 <tr key={p.id} className="hover:bg-[#F5F3F0] transition-colors bg-white">
-                  <td className="px-4 py-2.5"><ProductPhoto src={p.photo} size={32} /></td>
+                  <td className="px-4 py-2.5"><ProductPhoto src={p.photo} alt={p.name} size={32} /></td>
                   <td className="px-4 py-2.5 font-mono text-xs text-[#6B6560]">{mainVariant?.sku}</td>
                   <td className="px-4 py-2.5">
                     <p className="font-medium text-[#1A1A1A] text-xs">{p.name}</p>
@@ -923,7 +922,7 @@ function RealInventoryScreen({ onNavigate, onUnauthorized }: {
       {loading && <tr><td colSpan={11} className="text-center py-12 text-[#6B6560] text-sm">Cargando productos...</td></tr>}
       {!loading && error && <tr><td colSpan={11} className="text-center py-12 text-[#C62828] text-sm">{error}</td></tr>}
       {!loading && !error && filtered.length === 0 && <tr><td colSpan={11} className="text-center py-12 text-[#6B6560] text-sm">No se encontraron productos</td></tr>}
-      {!loading && !error && filtered.map((product) => { const visualStatus = productVisualStatus(product); const stock = product.variants.reduce((sum, variant) => sum + variant.stock, 0); return <tr key={product.id} className="hover:bg-[#F5F3F0] transition-colors bg-white"><td className="px-4 py-2.5"><ProductPhoto src={product.images[0]?.secureUrl || ""} size={32} /></td><td className="px-4 py-2.5 font-mono text-xs text-[#6B6560]">{product.skuBase}</td><td className="px-4 py-2.5"><p className="font-medium text-[#1A1A1A] text-xs">{product.name}</p>{product.variants.length > 1 && <p className="text-[10px] text-[#6B6560]">{product.variants.length} variantes</p>}</td><td className="px-4 py-2.5 text-xs text-[#6B6560]">{product.category.name}</td><td className="px-4 py-2.5 text-xs text-[#6B6560]">{product.category.usesSizes ? [...new Set(product.variants.map((variant) => variant.size).filter(Boolean))].join(", ") : "—"}</td><td className="px-4 py-2.5 text-xs text-[#6B6560]">{[...new Set(product.variants.map((variant) => variant.color).filter(Boolean))].join(", ") || "—"}</td><td className="px-4 py-2.5 text-xs text-[#6B6560]">{product.program.name}</td><td className="px-4 py-2.5 text-xs text-[#6B6560]">{product.creatorName}</td><td className="px-4 py-2.5 text-xs font-semibold text-[#1A1A1A]">{stock}</td><td className="px-4 py-2.5"><Badge label={getStatusLabel(visualStatus)} color={getStatusColor(visualStatus)} /></td><td className="px-4 py-2.5"><div className="flex items-center gap-1"><Btn variant="ghost" size="sm" onClick={() => onNavigate("product-detail", product)} className="!px-2"><Icon path={Icons.eye} size={13} /></Btn><Btn variant="ghost" size="sm" onClick={() => onNavigate("product-edit", product)} className="!px-2"><Icon path={Icons.edit} size={13} /></Btn></div></td></tr>; })}
+      {!loading && !error && filtered.map((product) => { const visualStatus = productVisualStatus(product); const stock = product.variants.reduce((sum, variant) => sum + variant.stock, 0); return <tr key={product.id} className="hover:bg-[#F5F3F0] transition-colors bg-white"><td className="px-4 py-2.5"><ProductPhoto src={product.images[0]?.secureUrl} alt={product.name} size={32} /></td><td className="px-4 py-2.5 font-mono text-xs text-[#6B6560]">{product.skuBase}</td><td className="px-4 py-2.5"><p className="font-medium text-[#1A1A1A] text-xs">{product.name}</p>{product.variants.length > 1 && <p className="text-[10px] text-[#6B6560]">{product.variants.length} variantes</p>}</td><td className="px-4 py-2.5 text-xs text-[#6B6560]">{product.category.name}</td><td className="px-4 py-2.5 text-xs text-[#6B6560]">{product.category.usesSizes ? [...new Set(product.variants.map((variant) => variant.size).filter(Boolean))].join(", ") : "—"}</td><td className="px-4 py-2.5 text-xs text-[#6B6560]">{[...new Set(product.variants.map((variant) => variant.color).filter(Boolean))].join(", ") || "—"}</td><td className="px-4 py-2.5 text-xs text-[#6B6560]">{product.program.name}</td><td className="px-4 py-2.5 text-xs text-[#6B6560]">{product.creatorName}</td><td className="px-4 py-2.5 text-xs font-semibold text-[#1A1A1A]">{stock}</td><td className="px-4 py-2.5"><Badge label={getStatusLabel(visualStatus)} color={getStatusColor(visualStatus)} /></td><td className="px-4 py-2.5"><div className="flex items-center gap-1"><Btn variant="ghost" size="sm" onClick={() => onNavigate("product-detail", product)} className="!px-2"><Icon path={Icons.eye} size={13} /></Btn><Btn variant="ghost" size="sm" onClick={() => onNavigate("product-edit", product)} className="!px-2"><Icon path={Icons.edit} size={13} /></Btn></div></td></tr>; })}
     </tbody></table></div><div className="px-6 py-2 border-t border-[#E2DDD7] bg-white text-xs text-[#6B6560]">Mostrando {filtered.length} de {products.length} productos</div>
   </div>;
 }
@@ -962,9 +961,97 @@ function RealProductFormScreen({ editProduct, onSaved, onNavigate, onUnauthorize
       <div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm"><div className="px-5 py-4 border-b border-[#E2DDD7]"><h3 className="text-sm font-semibold text-[#1A1A1A]">Información básica</h3></div><div className="p-5 grid grid-cols-2 gap-4"><div className="col-span-2"><Input label="Nombre del producto" value={name} onChange={setName} required /></div>
         <div className="flex flex-col gap-1"><label className="text-xs font-medium text-[#6B6560] uppercase tracking-wide">Categoría *</label><select disabled={isEdit} value={categoryId} onChange={(event) => { setCategoryId(event.target.value); setVariants((items) => items.map((item) => ({ ...item, size: null }))); }} className="border border-[#E2DDD7] rounded px-3 py-2 text-sm bg-white disabled:bg-[#F5F3F0] disabled:text-[#6B6560]"><option value="">— Seleccionar —</option>{availableCategories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>{isEdit && <span className="text-[10px] text-[#6B6560]">La categoría no puede cambiarse después de generar el SKU.</span>}</div>
         <Select label="Programa / Taller" value={programId} onChange={setProgramId} required options={availablePrograms.map((item) => ({ value: item.id, label: item.name }))} /><div className="col-span-2"><Input label="Creadora / Diseñadora" value={creatorName} onChange={setCreatorName} required /></div><div className="col-span-2"><Textarea label="Descripción del producto" value={description} onChange={setDescription} rows={2} /></div><div className="col-span-2"><Textarea label="Historia del producto" value={history} onChange={setHistory} rows={3} /></div>{isEdit && <label className="col-span-2 flex items-center gap-2 text-sm"><input type="checkbox" checked={active} onChange={(event) => setActive(event.target.checked)} className="accent-[#2D6A6A]" />Producto activo</label>}</div></div>
-      <div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm"><div className="px-5 py-4 border-b border-[#E2DDD7]"><h3 className="text-sm font-semibold text-[#1A1A1A]">Fotografía del producto</h3></div><div className="p-5 flex items-center gap-5"><div className="w-28 h-28 rounded-lg border-2 border-dashed border-[#E2DDD7] bg-[#F5F3F0] flex items-center justify-center"><Icon path={Icons.package} size={24} className="text-[#6B6560]" /></div><p className="text-xs text-[#6B6560]">La carga de fotografías se habilitará con Cloudinary en una etapa posterior.</p></div></div>
+      <div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm"><div className="px-5 py-4 border-b border-[#E2DDD7]"><h3 className="text-sm font-semibold text-[#1A1A1A]">Fotografía del producto</h3></div><div className="p-5 flex items-center gap-5"><div className="w-28 h-28 rounded-lg border-2 border-dashed border-[#E2DDD7] bg-[#F5F3F0] flex items-center justify-center"><Icon path={Icons.package} size={24} className="text-[#6B6560]" /></div><p className="text-xs text-[#6B6560]">Después de registrar el producto, gestiona sus fotografías desde el detalle.</p></div></div>
       {!isEdit && <div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm"><div className="px-5 py-4 border-b border-[#E2DDD7] flex justify-between"><div><h3 className="text-sm font-semibold text-[#1A1A1A]">Variantes {selectedCategory?.usesSizes ? "(talla + color)" : "(color)"}</h3><p className="text-[10px] text-[#6B6560] mt-0.5">El backend genera el SKU; el stock inicial será 0</p></div><Btn variant="secondary" size="sm" onClick={() => setVariants((items) => [...items, { key: Date.now(), size: null, color: null, minimumStock: 0 }])}><Icon path={Icons.plus} size={13} />Agregar variante</Btn></div><div className="p-5 space-y-3">{variants.map((variant) => <div key={variant.key} className="grid gap-3 p-3 bg-[#F5F3F0] rounded-lg border border-[#E2DDD7]" style={{ gridTemplateColumns: selectedCategory?.usesSizes ? "1fr 1fr 1fr 1fr auto" : "1fr 1fr 1fr auto" }}><div><label className="text-[10px] font-medium text-[#6B6560] uppercase tracking-wide block mb-1">SKU</label><div className="border border-[#E2DDD7] rounded px-2.5 py-1.5 text-xs font-mono text-[#6B6560] bg-white">Generado al guardar</div></div>{selectedCategory?.usesSizes && <div><label className="text-[10px] font-medium text-[#6B6560] uppercase tracking-wide block mb-1">Talla</label><input value={variant.size || ""} onChange={(event) => updateVariant(variant.key, { size: event.target.value })} className="w-full border border-[#E2DDD7] rounded px-2.5 py-1.5 text-xs bg-white" /></div>}<div><label className="text-[10px] font-medium text-[#6B6560] uppercase tracking-wide block mb-1">Color</label><input value={variant.color || ""} onChange={(event) => updateVariant(variant.key, { color: event.target.value })} className="w-full border border-[#E2DDD7] rounded px-2.5 py-1.5 text-xs bg-white" /></div><div><label className="text-[10px] font-medium text-[#6B6560] uppercase tracking-wide block mb-1">Stock mínimo</label><input type="number" min={0} value={variant.minimumStock} onChange={(event) => updateVariant(variant.key, { minimumStock: Number(event.target.value) })} className="w-full border border-[#E2DDD7] rounded px-2.5 py-1.5 text-xs bg-white" /></div><div className="flex items-end">{variants.length > 1 && <button onClick={() => setVariants((items) => items.filter((item) => item.key !== variant.key))} className="p-1.5 text-[#C62828] hover:bg-[#FFEBEE] rounded"><Icon path={Icons.x} size={14} /></button>}</div></div>)}</div></div>}
     </div></div>
+  </div>;
+}
+
+function productImageMessage(error: unknown, onUnauthorized: () => void) {
+  if (error instanceof ApiError && error.status === 401) {
+    onUnauthorized();
+    return "La sesión expiró. Inicia sesión nuevamente.";
+  }
+  if (error instanceof ApiError && error.status === 400) return "Selecciona una imagen JPG, PNG o WebP válida.";
+  if (error instanceof ApiError && error.status === 403) return "No tienes permiso para gestionar imágenes.";
+  if (error instanceof ApiError && error.status === 404) return "El producto o la imagen ya no existe.";
+  if (error instanceof ApiError && error.status === 409) return "El producto está inactivo o ya tiene el máximo de 5 imágenes.";
+  if (error instanceof ApiError && error.status === 413) return "La imagen no puede superar 5 MB.";
+  return "No se pudo completar la operación con la imagen.";
+}
+
+function ProductImageGallery({ product, onUnauthorized }: { product: ApiProduct; onUnauthorized: () => void }) {
+  const initialImages = () => product.images.map((image) => ({ ...image, productId: product.id }));
+  const [images, setImages] = useState<ApiProductImage[]>(() => initialImages().sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt)));
+  const [selectedId, setSelectedId] = useState<string | null>(product.images[0]?.id ?? null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const setImageList = (next: ApiProductImage[], preferredId?: string | null) => {
+    const ordered = [...next].sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt));
+    setImages(ordered);
+    setSelectedId((current) => preferredId && ordered.some((image) => image.id === preferredId)
+      ? preferredId
+      : ordered.some((image) => image.id === current) ? current : ordered[0]?.id ?? null);
+  };
+  const refresh = async (preferredId?: string | null) => {
+    const result = await productImagesApi.list(product.id);
+    setImageList(result.images, preferredId);
+  };
+  useEffect(() => { void refresh().catch((requestError) => setError(productImageMessage(requestError, onUnauthorized))); }, [product.id]);
+  useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
+
+  const selectFile = (file: File | undefined) => {
+    setError(""); setNotice("");
+    if (!file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return setError("Selecciona una imagen JPG, PNG o WebP.");
+    if (file.size > 5 * 1024 * 1024) return setError("La imagen no puede superar 5 MB.");
+    if (images.length >= 5) return setError("Este producto ya tiene el máximo de 5 imágenes.");
+    setSelectedFile(file); setPreviewUrl(URL.createObjectURL(file));
+  };
+  const clearSelection = () => {
+    setSelectedFile(null); setPreviewUrl(null);
+    if (inputRef.current) inputRef.current.value = "";
+  };
+  const upload = async () => {
+    if (!selectedFile || loading || !product.active) return;
+    setLoading(true); setError(""); setNotice("");
+    try {
+      const result = await productImagesApi.upload(product.id, selectedFile);
+      await refresh(result.image.id);
+      clearSelection();
+      setNotice("Imagen subida correctamente.");
+    } catch (requestError) { setError(productImageMessage(requestError, onUnauthorized)); }
+    finally { setLoading(false); }
+  };
+  const remove = async () => {
+    const selected = images.find((image) => image.id === selectedId);
+    if (!selected || removingId) return;
+    if (!window.confirm("¿Eliminar esta imagen del producto?")) return;
+    setRemovingId(selected.id); setError(""); setNotice("");
+    try {
+      await productImagesApi.remove(product.id, selected.id);
+      await refresh();
+      setNotice("Imagen eliminada correctamente.");
+    } catch (requestError) { setError(productImageMessage(requestError, onUnauthorized)); }
+    finally { setRemovingId(null); }
+  };
+
+  const selected = images.find((image) => image.id === selectedId) ?? images[0];
+  const visibleUrl = previewUrl ?? selected?.secureUrl;
+  return <div className="bg-white rounded-lg border border-[#E2DDD7] p-4 shadow-sm flex flex-col gap-3"><div className="w-full aspect-square rounded-lg bg-[#F5F3F0] overflow-hidden flex items-center justify-center">{visibleUrl ? <img src={visibleUrl} alt={selectedFile ? `Vista previa de ${selectedFile.name}` : product.name} className="w-full h-full object-cover" /> : <Icon path={Icons.package} size={32} className="text-[#6B6560]" />}</div>
+    {images.length > 0 && <div className="grid grid-cols-5 gap-1.5">{images.map((image) => <button key={image.id} type="button" aria-label={`Ver imagen ${image.position} de ${product.name}`} onClick={() => { setSelectedId(image.id); setPreviewUrl(null); }} className={`aspect-square rounded border overflow-hidden ${selected?.id === image.id && !previewUrl ? "border-[#2D6A6A] ring-2 ring-[#2D6A6A]/20" : "border-[#E2DDD7]"}`}><img src={image.secureUrl} alt={`${product.name}, imagen ${image.position}`} className="w-full h-full object-cover" /></button>)}</div>}
+    <p className="text-[10px] text-[#6B6560] text-center">{images.length}/5 imágenes</p>
+    {error && <p className="text-[10px] text-[#C62828]">{error}</p>}{notice && <p className="text-[10px] text-[#2E7D32]">{notice}</p>}
+    <input ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => selectFile(event.target.files?.[0])} disabled={!product.active || loading || !!removingId || images.length >= 5} />
+    {selectedFile ? <div className="space-y-2"><p className="text-[10px] text-[#6B6560] truncate" title={selectedFile.name}>{selectedFile.name}</p><div className="flex gap-2"><Btn variant="secondary" size="sm" disabled={loading} onClick={clearSelection}>Cancelar</Btn><Btn variant="primary" size="sm" disabled={loading} onClick={() => void upload()}><Icon path={Icons.upload} size={13} />{loading ? "Subiendo..." : "Subir imagen"}</Btn></div></div> : <Btn variant="secondary" size="sm" disabled={!product.active || loading || !!removingId || images.length >= 5} onClick={() => inputRef.current?.click()}><Icon path={Icons.upload} size={13} />Agregar imagen</Btn>}
+    {selected && !selectedFile && <Btn variant="danger" size="sm" disabled={!!removingId || loading} onClick={() => void remove()}><Icon path={Icons.x} size={13} />{removingId ? "Eliminando..." : "Eliminar imagen"}</Btn>}
+    {!product.active && <p className="text-[10px] text-[#6B6560] text-center">Activa el producto para agregar imágenes.</p>}
   </div>;
 }
 
@@ -978,7 +1065,7 @@ function RealProductDetailScreen({ productId, onNavigate, onUnauthorized }: { pr
   if (!product) return <div className="flex-1 flex items-center justify-center text-sm text-[#6B6560]">{error || "Cargando producto..."}</div>;
   const status = productVisualStatus(product);
   return <div className="flex-1 flex flex-col overflow-hidden"><TopBar title="Detalle del producto" subtitle={product.name} actions={<div className="flex gap-2"><Btn variant="ghost" size="sm" onClick={() => onNavigate("inventory")}><Icon path={Icons.back} size={14} />Volver</Btn><Btn variant="secondary" size="sm" onClick={openNew}><Icon path={Icons.plus} size={14} />Agregar variante</Btn><Btn variant="primary" size="sm" onClick={() => onNavigate("product-edit", product)}><Icon path={Icons.edit} size={14} />Editar</Btn></div>} />
-    <div className="flex-1 overflow-y-auto p-6"><div className="max-w-3xl mx-auto space-y-5">{error && <div className="bg-[#FFEBEE] border border-[#C62828] text-[#C62828] rounded px-4 py-3 text-sm">{error}</div>}<div className="grid grid-cols-3 gap-5"><div className="bg-white rounded-lg border border-[#E2DDD7] p-4 shadow-sm flex flex-col items-center gap-3">{product.images[0] ? <img src={product.images[0].secureUrl} alt={product.name} className="w-full aspect-square object-cover rounded-lg bg-[#F5F3F0]" /> : <div className="w-full aspect-square rounded-lg bg-[#F5F3F0] flex items-center justify-center"><Icon path={Icons.package} size={32} className="text-[#6B6560]" /></div>}<Badge label={getStatusLabel(status)} color={getStatusColor(status)} /></div><div className="col-span-2 bg-white rounded-lg border border-[#E2DDD7] p-5 shadow-sm space-y-4"><div><h2 className="text-xl font-semibold text-[#1A1A1A]" style={{ fontFamily: "var(--font-display)" }}>{product.name}</h2><p className="font-mono text-xs text-[#6B6560] mt-1">{product.skuBase}</p></div><div className="grid grid-cols-2 gap-3 text-sm"><div><p className="text-[10px] uppercase text-[#6B6560]">Categoría</p><p>{product.category.name}</p></div><div><p className="text-[10px] uppercase text-[#6B6560]">Programa</p><p>{product.program.name}</p></div><div><p className="text-[10px] uppercase text-[#6B6560]">Creadora</p><p>{product.creatorName}</p></div><div><p className="text-[10px] uppercase text-[#6B6560]">Estado</p><p>{product.active ? "Activo" : "Inactivo"}</p></div></div><div><p className="text-[10px] uppercase text-[#6B6560]">Descripción</p><p className="text-sm">{product.description}</p></div>{product.history && <div><p className="text-[10px] uppercase text-[#6B6560]">Historia</p><p className="text-sm">{product.history}</p></div>}</div></div>
+    <div className="flex-1 overflow-y-auto p-6"><div className="max-w-3xl mx-auto space-y-5">{error && <div className="bg-[#FFEBEE] border border-[#C62828] text-[#C62828] rounded px-4 py-3 text-sm">{error}</div>}<div className="grid grid-cols-3 gap-5"><div className="space-y-3"><ProductImageGallery product={product} onUnauthorized={onUnauthorized} /><div className="flex justify-center"><Badge label={getStatusLabel(status)} color={getStatusColor(status)} /></div></div><div className="col-span-2 bg-white rounded-lg border border-[#E2DDD7] p-5 shadow-sm space-y-4"><div><h2 className="text-xl font-semibold text-[#1A1A1A]" style={{ fontFamily: "var(--font-display)" }}>{product.name}</h2><p className="font-mono text-xs text-[#6B6560] mt-1">{product.skuBase}</p></div><div className="grid grid-cols-2 gap-3 text-sm"><div><p className="text-[10px] uppercase text-[#6B6560]">Categoría</p><p>{product.category.name}</p></div><div><p className="text-[10px] uppercase text-[#6B6560]">Programa</p><p>{product.program.name}</p></div><div><p className="text-[10px] uppercase text-[#6B6560]">Creadora</p><p>{product.creatorName}</p></div><div><p className="text-[10px] uppercase text-[#6B6560]">Estado</p><p>{product.active ? "Activo" : "Inactivo"}</p></div></div><div><p className="text-[10px] uppercase text-[#6B6560]">Descripción</p><p className="text-sm">{product.description}</p></div>{product.history && <div><p className="text-[10px] uppercase text-[#6B6560]">Historia</p><p className="text-sm">{product.history}</p></div>}</div></div>
       <div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm overflow-hidden"><div className="px-5 py-3.5 border-b border-[#E2DDD7]"><h3 className="text-sm font-semibold">Variantes</h3></div><table className="w-full text-sm"><thead className="bg-[#F5F3F0]"><tr>{["SKU", "Talla", "Color", "Stock", "Mínimo", "Estado", "Acciones"].map((header) => <th key={header} className="text-left px-5 py-3 text-xs font-medium text-[#6B6560] uppercase border-b border-[#E2DDD7]">{header}</th>)}</tr></thead><tbody className="divide-y divide-[#E2DDD7]">{product.variants.map((item) => { const itemStatus = variantVisualStatus(item); return <tr key={item.id}><td className="px-5 py-3 font-mono text-xs">{item.sku}</td><td className="px-5 py-3">{item.size || "—"}</td><td className="px-5 py-3">{item.color || "—"}</td><td className="px-5 py-3 font-semibold">{item.stock}</td><td className="px-5 py-3">{item.minimumStock}</td><td className="px-5 py-3"><Badge label={getStatusLabel(itemStatus)} color={getStatusColor(itemStatus)} /></td><td className="px-5 py-3"><Btn variant="ghost" size="sm" onClick={() => openEdit(item)}><Icon path={Icons.edit} size={13} /></Btn></td></tr>; })}</tbody></table></div></div></div>
     {variantModal && <Modal title={editing ? "Editar variante" : "Agregar variante"} onClose={() => setVariantModal(false)}><div className="space-y-4">{product.category.usesSizes && <Input label="Talla" value={variant.size || ""} onChange={(size) => setVariant({ ...variant, size })} readOnly={!!editing} required />}<Input label="Color" value={variant.color || ""} onChange={(color) => setVariant({ ...variant, color })} readOnly={!!editing} /><Input label="Stock mínimo" type="number" value={String(variant.minimumStock)} onChange={(value) => setVariant({ ...variant, minimumStock: Number(value) })} />{editing && <><Input label="SKU" value={editing.sku} readOnly /><Input label="Stock" value={String(editing.stock)} readOnly /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={variantActive} onChange={(event) => setVariantActive(event.target.checked)} className="accent-[#2D6A6A]" />Variante activa</label></>}<div className="flex justify-end gap-2"><Btn variant="secondary" onClick={() => setVariantModal(false)}>Cancelar</Btn><Btn variant="primary" onClick={() => void saveVariant()}>Guardar</Btn></div></div></Modal>}
   </div>;
