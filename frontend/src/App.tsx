@@ -1239,7 +1239,7 @@ function RealNewMovementScreen({ onNavigate, onUnauthorized }: { onNavigate: (sc
 
 // ─── Programs Screen ──────────────────────────────────────────────────────────
 */
-function CategoriesScreen({ products, currentUser }: { products: Product[]; currentUser: AuthenticatedUser }) {
+function CategoriesScreen({ currentUser }: { currentUser: AuthenticatedUser }) {
   const [categories, setCategories] = useState<ApiCategory[]>([]);
   const [form, setForm] = useState({ name: "", code: "", usesSizes: false });
   const [selected, setSelected] = useState<ApiCategory | null>(null);
@@ -1255,7 +1255,7 @@ function CategoriesScreen({ products, currentUser }: { products: Product[]; curr
   const toggle = async (category: ApiCategory) => { try { const result = await categoriesApi.update(category.id, { active: !category.active }); setCategories((items) => items.map((item) => item.id === category.id ? result.category : item)); } catch { setMessage("No se pudo actualizar la categoría."); } };
   return <div className="flex-1 flex flex-col overflow-hidden">
     <TopBar title="Categorías de productos" subtitle="Gestión de categorías del inventario" actions={isAdmin ? <Btn variant="primary" size="sm" onClick={() => setShowModal(true)}><Icon path={Icons.plus} size={14} />Nueva categoría</Btn> : undefined} />
-    <div className="flex-1 overflow-y-auto p-6"><div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm overflow-hidden"><table className="w-full text-sm"><thead className="bg-[#F5F3F0]"><tr>{["Categoría", "Código", "Usa tallas", "Productos", "Estado", ...(isAdmin ? ["Acciones"] : [])].map((header) => <th key={header} className="text-left px-5 py-3 text-xs font-medium text-[#6B6560] uppercase tracking-wide border-b border-[#E2DDD7]">{header}</th>)}</tr></thead><tbody className="divide-y divide-[#E2DDD7]">{loading ? <tr><td colSpan={isAdmin ? 6 : 5} className="text-center py-12 text-[#6B6560] text-sm">Cargando categorías...</td></tr> : categories.map((category) => <tr key={category.id} className="hover:bg-[#F5F3F0] transition-colors"><td className="px-5 py-3.5 font-medium text-[#1A1A1A]">{category.name}</td><td className="px-5 py-3.5 font-mono text-xs text-[#6B6560]">{category.code}</td><td className="px-5 py-3.5">{category.usesSizes ? <Badge label="Sí" color="bg-[#E3F2FD] text-[#1565C0]" /> : <span className="text-[#6B6560] text-xs">No</span>}</td><td className="px-5 py-3.5"><span className="font-semibold text-[#2D6A6A]">{products.filter((product) => product.categoryId === category.id).length}</span></td><td className="px-5 py-3.5"><Badge label={category.active ? "Activa" : "Inactiva"} color={category.active ? "bg-[#E8F5E9] text-[#2E7D32]" : "bg-gray-100 text-gray-500"} /></td>{isAdmin && <td className="px-5 py-3.5 flex gap-1"><Btn variant="ghost" size="sm" onClick={() => edit(category)}><Icon path={Icons.edit} size={13} /></Btn><Btn variant="ghost" size="sm" onClick={() => void toggle(category)}>{category.active ? "Desactivar" : "Activar"}</Btn></td>}</tr>)}</tbody></table></div></div>
+    <div className="flex-1 overflow-y-auto p-6"><div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm overflow-hidden"><table className="w-full text-sm"><thead className="bg-[#F5F3F0]"><tr>{["Categoría", "Código", "Usa tallas", "Productos", "Estado", ...(isAdmin ? ["Acciones"] : [])].map((header) => <th key={header} className="text-left px-5 py-3 text-xs font-medium text-[#6B6560] uppercase tracking-wide border-b border-[#E2DDD7]">{header}</th>)}</tr></thead><tbody className="divide-y divide-[#E2DDD7]">{loading ? <tr><td colSpan={isAdmin ? 6 : 5} className="text-center py-12 text-[#6B6560] text-sm">Cargando categorías...</td></tr> : categories.map((category) => <tr key={category.id} className="hover:bg-[#F5F3F0] transition-colors"><td className="px-5 py-3.5 font-medium text-[#1A1A1A]">{category.name}</td><td className="px-5 py-3.5 font-mono text-xs text-[#6B6560]">{category.code}</td><td className="px-5 py-3.5">{category.usesSizes ? <Badge label="Sí" color="bg-[#E3F2FD] text-[#1565C0]" /> : <span className="text-[#6B6560] text-xs">No</span>}</td><td className="px-5 py-3.5"><span className="font-semibold text-[#2D6A6A]">{category.productCount}</span></td><td className="px-5 py-3.5"><Badge label={category.active ? "Activa" : "Inactiva"} color={category.active ? "bg-[#E8F5E9] text-[#2E7D32]" : "bg-gray-100 text-gray-500"} /></td>{isAdmin && <td className="px-5 py-3.5 flex gap-1"><Btn variant="ghost" size="sm" onClick={() => edit(category)}><Icon path={Icons.edit} size={13} /></Btn><Btn variant="ghost" size="sm" onClick={() => void toggle(category)}>{category.active ? "Desactivar" : "Activar"}</Btn></td>}</tr>)}</tbody></table></div></div>
     {showModal && <Modal title={selected ? "Editar categoría" : "Nueva categoría"} onClose={close}><div className="space-y-4"><Input label="Nombre de la categoría" value={form.name} onChange={(name) => setForm({ ...form, name })} required /><Input label="Código (para SKU)" value={form.code} onChange={(code) => setForm({ ...form, code })} required /><label className="flex items-center gap-2 cursor-pointer"><input type="checkbox" checked={form.usesSizes} onChange={(event) => setForm({ ...form, usesSizes: event.target.checked })} className="accent-[#2D6A6A]" /><span className="text-sm text-[#1A1A1A]">Esta categoría utiliza tallas</span></label><div className="flex justify-end gap-2 pt-2"><Btn variant="secondary" onClick={close}>Cancelar</Btn><Btn variant="primary" onClick={() => void save()}><Icon path={Icons.check} size={14} />{selected ? "Guardar cambios" : "Crear categoría"}</Btn></div></div></Modal>}
     {message && <Toast message={message} onClose={() => setMessage("")} />}
   </div>;
@@ -1326,7 +1326,7 @@ function CategoriesScreen({ products, currentUser }: { products: Product[]; curr
 
 // ─── Movements Screen ─────────────────────────────────────────────────────────
 */
-function ProgramsScreen({ products, currentUser }: { products: Product[]; currentUser: AuthenticatedUser }) {
+function ProgramsScreen({ currentUser }: { currentUser: AuthenticatedUser }) {
   const [programs, setPrograms] = useState<ApiProgram[]>([]);
   const [form, setForm] = useState({ name: "", description: "" });
   const [selected, setSelected] = useState<ApiProgram | null>(null);
@@ -1342,7 +1342,7 @@ function ProgramsScreen({ products, currentUser }: { products: Product[]; curren
   const toggle = async (program: ApiProgram) => { try { const result = await programsApi.update(program.id, { active: !program.active }); setPrograms((items) => items.map((item) => item.id === program.id ? result.program : item)); } catch { setMessage("No se pudo actualizar el programa."); } };
   return <div className="flex-1 flex flex-col overflow-hidden">
     <TopBar title="Programas / Talleres" subtitle="Gestión de programas y talleres de origen" actions={isAdmin ? <Btn variant="primary" size="sm" onClick={() => setShowModal(true)}><Icon path={Icons.plus} size={14} />Nuevo programa/taller</Btn> : undefined} />
-    <div className="flex-1 overflow-y-auto p-6"><div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm overflow-hidden"><table className="w-full text-sm"><thead className="bg-[#F5F3F0]"><tr>{["Nombre", "Descripción", "Productos", "Estado", ...(isAdmin ? ["Acciones"] : [])].map((header) => <th key={header} className="text-left px-5 py-3 text-xs font-medium text-[#6B6560] uppercase tracking-wide border-b border-[#E2DDD7]">{header}</th>)}</tr></thead><tbody className="divide-y divide-[#E2DDD7]">{loading ? <tr><td colSpan={isAdmin ? 5 : 4} className="text-center py-12 text-[#6B6560] text-sm">Cargando programas...</td></tr> : programs.map((program) => <tr key={program.id} className="hover:bg-[#F5F3F0] transition-colors"><td className="px-5 py-3.5 font-medium text-[#1A1A1A]">{program.name}</td><td className="px-5 py-3.5 text-sm text-[#6B6560]">{program.description || "—"}</td><td className="px-5 py-3.5"><span className="font-semibold text-[#2D6A6A]">{products.filter((product) => product.programId === program.id).length}</span></td><td className="px-5 py-3.5"><Badge label={program.active ? "Activo" : "Inactivo"} color={program.active ? "bg-[#E8F5E9] text-[#2E7D32]" : "bg-gray-100 text-gray-500"} /></td>{isAdmin && <td className="px-5 py-3.5 flex gap-1"><Btn variant="ghost" size="sm" onClick={() => edit(program)}><Icon path={Icons.edit} size={13} /></Btn><Btn variant="ghost" size="sm" onClick={() => void toggle(program)}>{program.active ? "Desactivar" : "Activar"}</Btn></td>}</tr>)}</tbody></table></div></div>
+    <div className="flex-1 overflow-y-auto p-6"><div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm overflow-hidden"><table className="w-full text-sm"><thead className="bg-[#F5F3F0]"><tr>{["Nombre", "Descripción", "Productos", "Estado", ...(isAdmin ? ["Acciones"] : [])].map((header) => <th key={header} className="text-left px-5 py-3 text-xs font-medium text-[#6B6560] uppercase tracking-wide border-b border-[#E2DDD7]">{header}</th>)}</tr></thead><tbody className="divide-y divide-[#E2DDD7]">{loading ? <tr><td colSpan={isAdmin ? 5 : 4} className="text-center py-12 text-[#6B6560] text-sm">Cargando programas...</td></tr> : programs.map((program) => <tr key={program.id} className="hover:bg-[#F5F3F0] transition-colors"><td className="px-5 py-3.5 font-medium text-[#1A1A1A]">{program.name}</td><td className="px-5 py-3.5 text-sm text-[#6B6560]">{program.description || "—"}</td><td className="px-5 py-3.5"><span className="font-semibold text-[#2D6A6A]">{program.productCount}</span></td><td className="px-5 py-3.5"><Badge label={program.active ? "Activo" : "Inactivo"} color={program.active ? "bg-[#E8F5E9] text-[#2E7D32]" : "bg-gray-100 text-gray-500"} /></td>{isAdmin && <td className="px-5 py-3.5 flex gap-1"><Btn variant="ghost" size="sm" onClick={() => edit(program)}><Icon path={Icons.edit} size={13} /></Btn><Btn variant="ghost" size="sm" onClick={() => void toggle(program)}>{program.active ? "Desactivar" : "Activar"}</Btn></td>}</tr>)}</tbody></table></div></div>
     {showModal && <Modal title={selected ? "Editar programa / taller" : "Nuevo programa / taller"} onClose={close}><div className="space-y-4"><Input label="Nombre" value={form.name} onChange={(name) => setForm({ ...form, name })} required /><Textarea label="Descripción" value={form.description} onChange={(description) => setForm({ ...form, description })} /><div className="flex justify-end gap-2 pt-2"><Btn variant="secondary" onClick={close}>Cancelar</Btn><Btn variant="primary" onClick={() => void save()}><Icon path={Icons.check} size={14} />{selected ? "Guardar cambios" : "Crear programa"}</Btn></div></div></Modal>}
     {message && <Toast message={message} onClose={() => setMessage("")} />}
   </div>;
@@ -1577,43 +1577,6 @@ function RealReportsScreen({ onUnauthorized }: { onUnauthorized: () => void }) {
   </div>;
 }
 
-// ─── Reports Screen ───────────────────────────────────────────────────────────
-function ReportsScreen({ products, movements }: { products: Product[]; movements: Movement[] }) {
-  const reports = [
-    { title: "Inventario actual", description: "Vista completa del stock por producto y variante", icon: Icons.inventory, count: products.length, unit: "productos" },
-    { title: "Productos por categoría", description: "Distribución de productos en cada categoría", icon: Icons.categories, count: CATEGORIES.length, unit: "categorías" },
-    { title: "Productos por programa/taller", description: "Productos organizados según su taller de origen", icon: Icons.programs, count: PROGRAMS.length, unit: "talleres" },
-    { title: "Productos sin stock", description: "Listado de productos agotados que requieren atención", icon: Icons.alert, count: products.filter(p => computeStatus(p) === "out_of_stock").length, unit: "sin stock" },
-    { title: "Productos con stock bajo", description: "Productos que requieren reabastecimiento pronto", icon: Icons.arrowDown, count: products.filter(p => computeStatus(p) === "low_stock").length, unit: "con stock bajo" },
-    { title: "Historial de movimientos", description: "Registro completo de entradas, salidas y ajustes", icon: Icons.movements, count: movements.length, unit: "movimientos" },
-  ];
-
-  return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      <TopBar title="Reportes" subtitle="Reportes del módulo de inventario" />
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="grid grid-cols-2 gap-4 max-w-3xl">
-          {reports.map(r => (
-            <div key={r.title} className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm p-5 hover:border-[#2D6A6A] hover:shadow-md transition-all cursor-pointer group">
-              <div className="flex items-start justify-between mb-3">
-                <div className="p-2 bg-[#E8F4F4] rounded-lg group-hover:bg-[#2D6A6A] transition-colors">
-                  <Icon path={r.icon} size={18} className="text-[#2D6A6A] group-hover:text-white transition-colors" />
-                </div>
-                <span className="text-2xl font-bold text-[#2D6A6A]" style={{ fontFamily: "var(--font-display)" }}>{r.count}</span>
-              </div>
-              <h3 className="text-sm font-semibold text-[#1A1A1A] mb-1">{r.title}</h3>
-              <p className="text-xs text-[#6B6560]">{r.description}</p>
-              <div className="mt-4 pt-3 border-t border-[#E2DDD7]">
-                <span className="text-xs text-[#2D6A6A] font-medium">Próximamente: exportación en PDF / Excel</span>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ─── Settings Screen ──────────────────────────────────────────────────────────
 function SettingsScreen() {
   const sections = [
@@ -1753,8 +1716,8 @@ export default function App() {
         {(screen === "product-new") && <RealProductFormScreen onNavigate={navigate} onSaved={handleSaveProduct} onUnauthorized={handleUnauthorized} />}
         {screen === "product-edit" && selectedProduct && <RealProductFormScreen onNavigate={navigate} onSaved={handleSaveProduct} onUnauthorized={handleUnauthorized} editProduct={selectedProduct} />}
         {screen === "product-detail" && selectedProduct && <RealProductDetailScreen productId={selectedProduct.id} onNavigate={navigate} onUnauthorized={handleUnauthorized} />}
-        {screen === "categories" && <CategoriesScreen products={products} currentUser={currentUser!} />}
-        {screen === "programs" && <ProgramsScreen products={products} currentUser={currentUser!} />}
+        {screen === "categories" && <CategoriesScreen currentUser={currentUser!} />}
+        {screen === "programs" && <ProgramsScreen currentUser={currentUser!} />}
         {screen === "movements" && <RealMovementsScreen onNavigate={navigate} onUnauthorized={handleUnauthorized} />}
         {screen === "movement-new" && <RealNewMovementScreen onNavigate={navigate} onUnauthorized={handleUnauthorized} />}
         {screen === "reports" && <RealReportsScreen onUnauthorized={handleUnauthorized} />}

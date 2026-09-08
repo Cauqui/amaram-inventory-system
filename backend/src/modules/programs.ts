@@ -11,7 +11,13 @@ const programFields = {
   active: true,
   createdAt: true,
   updatedAt: true,
+  _count: { select: { products: { where: { active: true } } } },
 } as const;
+
+function programDto(program: { _count: { products: number }; id: string; name: string; description: string | null; active: boolean; createdAt: Date; updatedAt: Date }) {
+  const { _count, ...data } = program;
+  return { ...data, productCount: _count.products };
+}
 
 const description = z.string().trim().max(10_000).nullable().optional();
 const createSchema = z.object({
@@ -30,7 +36,7 @@ router.get("/", requireAuth, async (_request, response, next) => {
       select: programFields,
       orderBy: [{ name: "asc" }, { id: "asc" }],
     });
-    return response.status(200).json({ programs });
+    return response.status(200).json({ programs: programs.map(programDto) });
   } catch (error) {
     return next(error);
   }
@@ -42,7 +48,7 @@ router.post("/", requireAuth, requireRole("ADMIN"), async (request, response, ne
 
   try {
     const program = await prisma.program.create({ data: parsed.data, select: programFields });
-    return response.status(201).json({ program });
+    return response.status(201).json({ program: programDto(program) });
   } catch (error) {
     return next(error);
   }
@@ -57,7 +63,7 @@ router.patch("/:id", requireAuth, requireRole("ADMIN"), async (request, response
     const program = await prisma.program.update({
       where: { id: id.data }, data: parsed.data, select: programFields,
     });
-    return response.status(200).json({ program });
+    return response.status(200).json({ program: programDto(program) });
   } catch (error) {
     if (typeof error === "object" && error !== null && "code" in error && error.code === "P2025") {
       return response.status(404).json({ error: "Program not found." });

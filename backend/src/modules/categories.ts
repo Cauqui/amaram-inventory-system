@@ -12,7 +12,13 @@ const categoryFields = {
   active: true,
   createdAt: true,
   updatedAt: true,
+  _count: { select: { products: { where: { active: true } } } },
 } as const;
+
+function categoryDto(category: { _count: { products: number }; id: string; name: string; code: string; usesSizes: boolean; active: boolean; createdAt: Date; updatedAt: Date }) {
+  const { _count, ...data } = category;
+  return { ...data, productCount: _count.products };
+}
 
 const createSchema = z.object({
   name: z.string().trim().min(1).max(120),
@@ -37,7 +43,7 @@ router.get("/", requireAuth, async (_request, response, next) => {
       select: categoryFields,
       orderBy: [{ name: "asc" }, { id: "asc" }],
     });
-    return response.status(200).json({ categories });
+    return response.status(200).json({ categories: categories.map(categoryDto) });
   } catch (error) {
     return next(error);
   }
@@ -49,7 +55,7 @@ router.post("/", requireAuth, requireRole("ADMIN"), async (request, response, ne
 
   try {
     const category = await prisma.category.create({ data: parsed.data, select: categoryFields });
-    return response.status(201).json({ category });
+    return response.status(201).json({ category: categoryDto(category) });
   } catch (error) {
     if (isUniqueConflict(error)) return response.status(409).json({ error: "Category code already exists." });
     return next(error);
@@ -65,7 +71,7 @@ router.patch("/:id", requireAuth, requireRole("ADMIN"), async (request, response
     const category = await prisma.category.update({
       where: { id: id.data }, data: parsed.data, select: categoryFields,
     });
-    return response.status(200).json({ category });
+    return response.status(200).json({ category: categoryDto(category) });
   } catch (error) {
     if (isUniqueConflict(error)) return response.status(409).json({ error: "Category code already exists." });
     if (typeof error === "object" && error !== null && "code" in error && error.code === "P2025") {

@@ -17,6 +17,7 @@ export type ApiCategory = {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  productCount: number;
 };
 
 export type ApiProgram = {
@@ -26,6 +27,7 @@ export type ApiProgram = {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  productCount: number;
 };
 
 export type ApiProductVariant = {
