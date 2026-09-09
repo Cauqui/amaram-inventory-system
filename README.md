@@ -1,8 +1,10 @@
 # AMARAM - Sistema de Gestion de Inventario
 
+Sistema web de gestion y control de inventario de AMARAM.
+
 ## Estructura
 
-- frontend/: maqueta React + TypeScript + Vite existente, sin cambios.
+- frontend/: aplicacion React + TypeScript + Vite.
 - backend/: API Node.js + Express + TypeScript.
 - database/: reservado para documentacion y recursos de base de datos.
 
