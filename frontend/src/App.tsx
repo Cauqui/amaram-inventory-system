@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
+import JsBarcode from "jsbarcode";
 import {
-  ApiError, authApi, categoriesApi, dashboardApi, inventoryMovementsApi, productImagesApi, productsApi, programsApi, reportsApi,
+  ApiError, authApi, categoriesApi, dashboardApi, inventoryMovementsApi, productImagesApi, productsApi, productVariantsApi, programsApi, reportsApi,
   type ApiCategory, type ApiDashboard, type ApiInventoryMovement, type ApiProduct, type ApiProductVariant,
   type ApiInventoryReport, type ApiProductImage, type ApiProgram, type AuthenticatedUser, type InventoryMovementType, type ProductVariantInput,
 } from "./lib/api";
@@ -571,18 +572,64 @@ function ProductImageGallery({ product, onUnauthorized }: { product: ApiProduct;
   </div>;
 }
 
+function BarcodeSvg({ value }: { value: string }) {
+  const ref = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    if (!ref.current) return;
+    JsBarcode(ref.current, value, {
+      format: "CODE128",
+      displayValue: false,
+      lineColor: "#1A1A1A",
+      background: "#FFFFFF",
+      margin: 4,
+      width: 0.75,
+      height: 36,
+    });
+  }, [value]);
+
+  return <svg ref={ref} role="img" aria-label={`Código de barras ${value}`} className="w-full max-w-full h-auto" />;
+}
+
+function LabelArtwork({ product, variant, preview = false }: { product: ApiProduct; variant: ApiProductVariant; preview?: boolean }) {
+  const detail = [variant.color, product.category.usesSizes ? variant.size : null].filter(Boolean).join(" · ");
+  return <article className={`product-label${preview ? " label-preview" : ""}`}>
+    <section className="label-main-column">
+      <header className="label-brand"><span className="label-brand-name">AMARAM</span><span className="label-slogan">TEJIENDO UN FUTURO MÁS BRILLANTE</span></header>
+      <div className="label-product-copy"><h4>{product.name}</h4>{detail && <p>{detail}</p>}<span>{product.category.name.replace(/s$/i, "")} artesanal</span></div>
+      <div className="label-barcode"><BarcodeSvg value={variant.sku} /></div>
+      <p className="label-sku">{variant.sku}</p>
+    </section>
+    <aside className="label-side-column"><div className="label-symbol" aria-label="AMARAM">AM</div><p className="label-values">ARTESANÍA<br />COMUNIDAD<br />OPORTUNIDAD</p><div className="label-qr-reserve" aria-hidden="true" /><p className="label-history">CONOCE<br />NUESTRA HISTORIA</p></aside>
+  </article>;
+}
+
+function ProductVariantLabel({ product, variant, copies }: { product: ApiProduct; variant: ApiProductVariant; copies: number }) {
+  return <div className="label-print-sheet" aria-hidden="true">
+    {Array.from({ length: copies }, (_, index) => <LabelArtwork key={index} product={product} variant={variant} />)}
+  </div>;
+}
+
 function RealProductDetailScreen({ productId, onNavigate, onUnauthorized }: { productId: string; onNavigate: (screen: Screen, data?: unknown) => void; onUnauthorized: () => void }) {
-  const [product, setProduct] = useState<ApiProduct | null>(null); const [error, setError] = useState(""); const [variantModal, setVariantModal] = useState(false); const [editing, setEditing] = useState<ApiProductVariant | null>(null); const [variant, setVariant] = useState<ProductVariantInput>({ size: null, color: null, minimumStock: 0 }); const [variantActive, setVariantActive] = useState(true);
+  const [product, setProduct] = useState<ApiProduct | null>(null); const [error, setError] = useState(""); const [variantModal, setVariantModal] = useState(false); const [editing, setEditing] = useState<ApiProductVariant | null>(null); const [variant, setVariant] = useState<ProductVariantInput>({ size: null, color: null, minimumStock: 0 }); const [variantActive, setVariantActive] = useState(true); const [labelVariant, setLabelVariant] = useState<ApiProductVariant | null>(null); const [labelCopies, setLabelCopies] = useState("1"); const [labelError, setLabelError] = useState("");
   const load = async () => { try { const result = await productsApi.get(productId); setProduct(result.product); } catch (requestError) { setError(apiMessage(requestError, "No se pudo cargar el producto.", onUnauthorized)); } };
   useEffect(() => { void load(); }, [productId]);
   const openNew = () => { setEditing(null); setVariant({ size: null, color: null, minimumStock: 0 }); setVariantActive(true); setVariantModal(true); };
   const openEdit = (item: ApiProductVariant) => { setEditing(item); setVariant({ size: item.size, color: item.color, minimumStock: item.minimumStock }); setVariantActive(item.active); setVariantModal(true); };
+  const openLabel = (item: ApiProductVariant) => { setLabelVariant(item); setLabelCopies("1"); setLabelError(""); };
+  const printableCopies = Number(labelCopies);
+  const printLabels = () => {
+    if (!Number.isInteger(printableCopies) || printableCopies < 1 || printableCopies > 100) return setLabelError("Ingresa entre 1 y 100 etiquetas.");
+    setLabelError("");
+    window.print();
+  };
   const saveVariant = async () => { if (!product) return; setError(""); try { if (editing) await productsApi.updateVariant(product.id, editing.id, { minimumStock: variant.minimumStock, active: variantActive }); else await productsApi.addVariant(product.id, { size: product.category.usesSizes ? variant.size?.trim() || null : null, color: variant.color?.trim() || null, minimumStock: variant.minimumStock }); setVariantModal(false); await load(); } catch (requestError) { setError(apiMessage(requestError, "No se pudo guardar la variante.", onUnauthorized)); } };
   if (!product) return <div className="flex-1 flex items-center justify-center text-sm text-[#6B6560]">{error || "Cargando producto..."}</div>;
   const status = productVisualStatus(product);
   return <div className="flex-1 flex flex-col overflow-hidden"><TopBar title="Detalle del producto" subtitle={product.name} actions={<div className="flex gap-2"><Btn variant="ghost" size="sm" onClick={() => onNavigate("inventory")}><Icon path={Icons.back} size={14} />Volver</Btn><Btn variant="secondary" size="sm" onClick={openNew}><Icon path={Icons.plus} size={14} />Agregar variante</Btn><Btn variant="primary" size="sm" onClick={() => onNavigate("product-edit", product)}><Icon path={Icons.edit} size={14} />Editar</Btn></div>} />
     <div className="flex-1 overflow-y-auto p-6"><div className="max-w-3xl mx-auto space-y-5">{error && <div className="bg-[#FFEBEE] border border-[#C62828] text-[#C62828] rounded px-4 py-3 text-sm">{error}</div>}<div className="grid grid-cols-3 gap-5"><div className="space-y-3"><ProductImageGallery product={product} onUnauthorized={onUnauthorized} /><div className="flex justify-center"><Badge label={getStatusLabel(status)} color={getStatusColor(status)} /></div></div><div className="col-span-2 bg-white rounded-lg border border-[#E2DDD7] p-5 shadow-sm space-y-4"><div><h2 className="text-xl font-semibold text-[#1A1A1A]" style={{ fontFamily: "var(--font-display)" }}>{product.name}</h2><p className="font-mono text-xs text-[#6B6560] mt-1">{product.skuBase}</p></div><div className="grid grid-cols-2 gap-3 text-sm"><div><p className="text-[10px] uppercase text-[#6B6560]">Categoría</p><p>{product.category.name}</p></div><div><p className="text-[10px] uppercase text-[#6B6560]">Programa</p><p>{product.program.name}</p></div><div><p className="text-[10px] uppercase text-[#6B6560]">Creadora</p><p>{product.creatorName}</p></div><div><p className="text-[10px] uppercase text-[#6B6560]">Estado</p><p>{product.active ? "Activo" : "Inactivo"}</p></div></div><div><p className="text-[10px] uppercase text-[#6B6560]">Descripción</p><p className="text-sm">{product.description}</p></div>{product.history && <div><p className="text-[10px] uppercase text-[#6B6560]">Historia</p><p className="text-sm">{product.history}</p></div>}</div></div>
-      <div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm overflow-hidden"><div className="px-5 py-3.5 border-b border-[#E2DDD7]"><h3 className="text-sm font-semibold">Variantes</h3></div><table className="w-full text-sm"><thead className="bg-[#F5F3F0]"><tr>{["SKU", "Talla", "Color", "Stock", "Mínimo", "Estado", "Acciones"].map((header) => <th key={header} className="text-left px-5 py-3 text-xs font-medium text-[#6B6560] uppercase border-b border-[#E2DDD7]">{header}</th>)}</tr></thead><tbody className="divide-y divide-[#E2DDD7]">{product.variants.map((item) => { const itemStatus = variantVisualStatus(item); return <tr key={item.id}><td className="px-5 py-3 font-mono text-xs">{item.sku}</td><td className="px-5 py-3">{item.size || "—"}</td><td className="px-5 py-3">{item.color || "—"}</td><td className="px-5 py-3 font-semibold">{item.stock}</td><td className="px-5 py-3">{item.minimumStock}</td><td className="px-5 py-3"><Badge label={getStatusLabel(itemStatus)} color={getStatusColor(itemStatus)} /></td><td className="px-5 py-3"><Btn variant="ghost" size="sm" onClick={() => openEdit(item)}><Icon path={Icons.edit} size={13} /></Btn></td></tr>; })}</tbody></table></div></div></div>
+      <div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm overflow-hidden"><div className="px-5 py-3.5 border-b border-[#E2DDD7]"><h3 className="text-sm font-semibold">Variantes</h3></div><table className="w-full text-sm"><thead className="bg-[#F5F3F0]"><tr>{["SKU", "Talla", "Color", "Stock", "Mínimo", "Estado", "Acciones"].map((header) => <th key={header} className="text-left px-5 py-3 text-xs font-medium text-[#6B6560] uppercase border-b border-[#E2DDD7]">{header}</th>)}</tr></thead><tbody className="divide-y divide-[#E2DDD7]">{product.variants.map((item) => { const itemStatus = variantVisualStatus(item); return <tr key={item.id}><td className="px-5 py-3 font-mono text-xs">{item.sku}</td><td className="px-5 py-3">{item.size || "—"}</td><td className="px-5 py-3">{item.color || "—"}</td><td className="px-5 py-3 font-semibold">{item.stock}</td><td className="px-5 py-3">{item.minimumStock}</td><td className="px-5 py-3"><Badge label={getStatusLabel(itemStatus)} color={getStatusColor(itemStatus)} /></td><td className="px-5 py-3"><div className="flex items-center gap-1"><Btn variant="ghost" size="sm" onClick={() => openEdit(item)}><Icon path={Icons.edit} size={13} /></Btn><Btn variant="ghost" size="sm" onClick={() => openLabel(item)}>Etiqueta</Btn></div></td></tr>; })}</tbody></table></div></div></div>
+    {labelVariant && <Modal title="Vista previa de etiqueta" onClose={() => setLabelVariant(null)} width="max-w-3xl"><div className="space-y-4"><div className="label-preview-stage"><LabelArtwork product={product} variant={labelVariant} preview /></div><p className="text-xs text-[#6B6560]">Stock actual: <strong className="text-[#1A1A1A]">{labelVariant.stock}</strong></p><Input label="Cantidad de etiquetas" type="number" value={labelCopies} onChange={setLabelCopies} required />{labelError && <p className="text-xs text-[#C62828]">{labelError}</p>}<div className="flex justify-end gap-2"><Btn variant="secondary" onClick={() => setLabelVariant(null)}>Cancelar</Btn><Btn variant="primary" onClick={printLabels}>Imprimir etiquetas</Btn></div><ProductVariantLabel product={product} variant={labelVariant} copies={Number.isInteger(printableCopies) && printableCopies >= 1 && printableCopies <= 100 ? printableCopies : 1} /></div></Modal>}
     {variantModal && <Modal title={editing ? "Editar variante" : "Agregar variante"} onClose={() => setVariantModal(false)}><div className="space-y-4">{product.category.usesSizes && <Input label="Talla" value={variant.size || ""} onChange={(size) => setVariant({ ...variant, size })} readOnly={!!editing} required />}<Input label="Color" value={variant.color || ""} onChange={(color) => setVariant({ ...variant, color })} readOnly={!!editing} /><Input label="Stock mínimo" type="number" value={String(variant.minimumStock)} onChange={(value) => setVariant({ ...variant, minimumStock: Number(value) })} />{editing && <><Input label="SKU" value={editing.sku} readOnly /><Input label="Stock" value={String(editing.stock)} readOnly /><label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={variantActive} onChange={(event) => setVariantActive(event.target.checked)} className="accent-[#2D6A6A]" />Variante activa</label></>}<div className="flex justify-end gap-2"><Btn variant="secondary" onClick={() => setVariantModal(false)}>Cancelar</Btn><Btn variant="primary" onClick={() => void saveVariant()}>Guardar</Btn></div></div></Modal>}
   </div>;
 }
@@ -640,6 +687,23 @@ function RealNewMovementScreen({ onNavigate, onUnauthorized }: { onNavigate: (sc
   useEffect(() => { productsApi.list({ active: true }).then((result) => setProducts(result.products)).catch((requestError) => setError(apiMessage(requestError, "No se pudieron cargar los productos.", onUnauthorized))); }, []);
   const product = products.find((item) => item.id === productId); const variants = product?.variants.filter((item) => item.active) || []; const selectedVariant = variants.find((item) => item.id === variantId);
   const selectProduct = (id: string) => { setProductId(id); setVariantId(""); setError(""); };
+  const [scanSku, setScanSku] = useState(""); const [scanLoading, setScanLoading] = useState(false); const [scanMessage, setScanMessage] = useState("");
+  const findScannedVariant = async () => {
+    const sku = scanSku.trim();
+    if (!sku) return setScanMessage("Escribe o escanea un SKU.");
+    setScanLoading(true); setScanMessage(""); setError("");
+    try {
+      const lookup = await productVariantsApi.findBySku(sku);
+      const result = await productsApi.get(lookup.product.id);
+      setProducts((items) => [result.product, ...items.filter((item) => item.id !== result.product.id)]);
+      setProductId(result.product.id); setVariantId(lookup.variant.id); setScanSku(lookup.variant.sku);
+      setScanMessage(`Encontrado: ${lookup.product.name} · ${lookup.variant.sku}`);
+    } catch (requestError) {
+      if (requestError instanceof ApiError && requestError.status === 404) setScanMessage("No se encontró una variante con este código.");
+      else if (requestError instanceof ApiError && requestError.status === 400) setScanMessage("El SKU no tiene un formato válido.");
+      else setError(apiMessage(requestError, "No se pudo buscar el SKU.", onUnauthorized));
+    } finally { setScanLoading(false); }
+  };
   const submit = async () => {
     setError(""); if (!selectedVariant || !reason.trim()) return setError("Selecciona una variante e ingresa un motivo.");
     const parsedQuantity = Number(quantity); const parsedTarget = Number(targetStock);
@@ -660,7 +724,7 @@ function RealNewMovementScreen({ onNavigate, onUnauthorized }: { onNavigate: (sc
   };
   if (saved) return <div className="flex-1 flex flex-col overflow-hidden"><TopBar title="Registrar movimiento" /><div className="flex-1 flex items-center justify-center"><div className="text-center"><div className="w-14 h-14 rounded-full bg-[#E8F5E9] flex items-center justify-center mx-auto mb-4"><Icon path={Icons.check} size={28} className="text-[#2E7D32]" /></div><h3 className="text-lg font-semibold text-[#1A1A1A] mb-1" style={{ fontFamily: "var(--font-display)" }}>Movimiento registrado</h3><p className="text-sm text-[#6B6560] mb-6">El movimiento se registró correctamente</p><div className="flex gap-2 justify-center"><Btn variant="secondary" onClick={() => onNavigate("movements")}>Ver movimientos</Btn><Btn variant="primary" onClick={() => onNavigate("inventory")}>Volver al inventario</Btn></div></div></div></div>;
   return <div className="flex-1 flex flex-col overflow-hidden"><TopBar title="Registrar movimiento" subtitle="Entrada, salida o ajuste de stock" actions={<div className="flex gap-2"><Btn variant="secondary" onClick={() => onNavigate("movements")}>Cancelar</Btn><Btn variant="primary" onClick={() => void submit()} disabled={saving || !variantId || !reason.trim()}><Icon path={Icons.check} size={14} />{saving ? "Registrando..." : "Registrar"}</Btn></div>} />
-    <div className="flex-1 overflow-y-auto p-6"><div className="max-w-xl mx-auto"><div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm p-5 space-y-5">{error && <div className="bg-[#FFEBEE] border border-[#C62828] text-[#C62828] rounded px-3 py-2 text-sm">{error}</div>}<div><label className="text-xs font-medium text-[#6B6560] uppercase tracking-wide block mb-2">Tipo de movimiento *</label><div className="flex gap-2">{(["ENTRY", "EXIT", "ADJUSTMENT"] as const).map((item) => <button key={item} onClick={() => { setType(item); setError(""); }} className={`flex-1 py-2 rounded text-sm font-medium border transition-all ${type === item ? movementTypeColor(item) + " border-current" : "border-[#E2DDD7] text-[#6B6560] hover:bg-[#F5F3F0]"}`}>{movementTypeLabel(item)}</button>)}</div></div><Select label="Producto" value={productId} onChange={selectProduct} required options={products.map((item) => ({ value: item.id, label: `${item.name} — ${item.skuBase}` }))} />{product && <Select label="Variante" value={variantId} onChange={setVariantId} required options={variants.map((item) => ({ value: item.id, label: `${item.sku} — ${item.size ? `Talla ${item.size} — ` : ""}${item.color || "Sin color"} — Stock ${item.stock}` }))} />}{selectedVariant && <div className="bg-[#F5F3F0] rounded-lg p-3 text-xs"><p className="text-[#6B6560]">SKU: <span className="font-mono text-[#1A1A1A]">{selectedVariant.sku}</span></p><p className="text-[#6B6560] mt-1">Stock actual: <span className="font-bold text-[#1A1A1A]">{selectedVariant.stock} unidades</span></p></div>}{type === "ADJUSTMENT" ? <><p className="text-xs text-[#6B6560]">Stock registrado actualmente: <strong>{selectedVariant?.stock ?? 0}</strong></p><Input label="Stock físico contado" type="number" value={targetStock} onChange={setTargetStock} required /></> : <Input label={type === "ENTRY" ? "Cantidad de entrada" : "Cantidad de salida"} type="number" value={quantity} onChange={setQuantity} required />}<Textarea label="Motivo" value={reason} onChange={setReason} placeholder="Ej: Ingreso de nuevos productos, salida para feria, ajuste por daño..." rows={2} /><div className="bg-[#E8F4F4] rounded-lg p-3 text-xs text-[#2D6A6A]"><Icon path={Icons.alert} size={13} className="inline mr-1" />Todo movimiento queda registrado en el historial y no puede eliminarse.</div></div></div></div>
+    <div className="flex-1 overflow-y-auto p-6"><div className="max-w-xl mx-auto"><div className="bg-white rounded-lg border border-[#E2DDD7] shadow-sm p-5 space-y-5">{error && <div className="bg-[#FFEBEE] border border-[#C62828] text-[#C62828] rounded px-3 py-2 text-sm">{error}</div>}<form onSubmit={(event) => { event.preventDefault(); void findScannedVariant(); }} className="rounded-lg border border-[#E2DDD7] bg-[#F5F3F0] p-3"><label className="text-xs font-medium text-[#6B6560] uppercase tracking-wide block mb-1">Escanear o escribir SKU</label><div className="flex gap-2"><input autoFocus value={scanSku} onChange={(event) => setScanSku(event.target.value)} placeholder="Ej: AMA-CAN-0001-UNI-ARC" className="min-w-0 flex-1 border border-[#E2DDD7] rounded px-3 py-2 text-sm font-mono bg-white outline-none focus:border-[#2D6A6A]" /><button type="submit" disabled={scanLoading} className="inline-flex items-center rounded border border-[#E2DDD7] bg-white px-2.5 py-1 text-xs font-medium text-[#1A1A1A] disabled:opacity-50">{scanLoading ? "Buscando..." : "Buscar"}</button></div>{scanMessage && <p className={`mt-2 text-xs ${scanMessage.startsWith("Encontrado:") ? "text-[#2E7D32]" : "text-[#C62828]"}`}>{scanMessage}</p>}</form><div><label className="text-xs font-medium text-[#6B6560] uppercase tracking-wide block mb-2">Tipo de movimiento *</label><div className="flex gap-2">{(["ENTRY", "EXIT", "ADJUSTMENT"] as const).map((item) => <button key={item} onClick={() => { setType(item); setError(""); }} className={`flex-1 py-2 rounded text-sm font-medium border transition-all ${type === item ? movementTypeColor(item) + " border-current" : "border-[#E2DDD7] text-[#6B6560] hover:bg-[#F5F3F0]"}`}>{movementTypeLabel(item)}</button>)}</div></div><Select label="Producto" value={productId} onChange={selectProduct} required options={products.map((item) => ({ value: item.id, label: `${item.name} — ${item.skuBase}` }))} />{product && <Select label="Variante" value={variantId} onChange={setVariantId} required options={variants.map((item) => ({ value: item.id, label: `${item.sku} — ${item.size ? `Talla ${item.size} — ` : ""}${item.color || "Sin color"} — Stock ${item.stock}` }))} />}{selectedVariant && <div className="bg-[#F5F3F0] rounded-lg p-3 text-xs"><p className="text-[#6B6560]">SKU: <span className="font-mono text-[#1A1A1A]">{selectedVariant.sku}</span></p><p className="text-[#6B6560] mt-1">Stock actual: <span className="font-bold text-[#1A1A1A]">{selectedVariant.stock} unidades</span></p></div>}{type === "ADJUSTMENT" ? <><p className="text-xs text-[#6B6560]">Stock registrado actualmente: <strong>{selectedVariant?.stock ?? 0}</strong></p><Input label="Stock físico contado" type="number" value={targetStock} onChange={setTargetStock} required /></> : <Input label={type === "ENTRY" ? "Cantidad de entrada" : "Cantidad de salida"} type="number" value={quantity} onChange={setQuantity} required />}<Textarea label="Motivo" value={reason} onChange={setReason} placeholder="Ej: Ingreso de nuevos productos, salida para feria, ajuste por daño..." rows={2} /><div className="bg-[#E8F4F4] rounded-lg p-3 text-xs text-[#2D6A6A]"><Icon path={Icons.alert} size={13} className="inline mr-1" />Todo movimiento queda registrado en el historial y no puede eliminarse.</div></div></div></div>
   </div>;
 }
 

@@ -40,6 +40,11 @@ export type ApiProductVariant = {
   active: boolean;
 };
 
+export type ApiProductVariantLookup = {
+  variant: ApiProductVariant;
+  product: Pick<ApiProduct, "id" | "skuBase" | "name" | "active">;
+};
+
 export type ApiProductImage = {
   id: string;
   productId: string;
@@ -287,6 +292,12 @@ export const productsApi = {
     return request<{ variant: ApiProductVariant }>(`/products/${productId}/variants/${variantId}`, {
       method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify(data),
     });
+  },
+};
+
+export const productVariantsApi = {
+  findBySku(sku: string) {
+    return request<ApiProductVariantLookup>(`/product-variants/by-sku/${encodeURIComponent(sku)}`);
   },
 };
 
