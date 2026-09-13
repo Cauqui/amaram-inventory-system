@@ -1,8 +1,8 @@
 import "dotenv/config";
-import argon2 from "argon2";
 import { PrismaClient, UserRole } from "../src/generated/prisma/client.js";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { getDatabaseUrl } from "../src/config/env.js";
+import { hashPassword, validatePassword } from "../src/security/password.js";
 
 class MissingSeedVariableError extends Error {
   constructor(readonly variableName: string) {
@@ -30,9 +30,9 @@ function normalizedEmail(variableName: string): string {
   return requiredEnvironmentVariable(variableName).toLowerCase();
 }
 
-function seedPassword(variableName: string): string {
+function seedPassword(variableName: string, email: string): string {
   const value = requiredEnvironmentVariable(variableName);
-  if (value.length < 12) throw new InvalidSeedPasswordError(variableName);
+  if (validatePassword(value, email)) throw new InvalidSeedPasswordError(variableName);
   return value;
 }
 
@@ -88,7 +88,7 @@ function getInitialUsers(): InitialUser[] {
   return initialUsers.map((user) => {
     const name = requiredEnvironmentVariable(`${user.prefix}_NAME`);
     const email = normalizedEmail(`${user.prefix}_EMAIL`);
-    const password = seedPassword(`${user.prefix}_PASSWORD`);
+    const password = seedPassword(`${user.prefix}_PASSWORD`, email);
 
     return { name, email, password, role: user.role };
   });
@@ -99,7 +99,7 @@ async function seedUsers(users: InitialUser[]) {
     const existingUser = await prisma.user.findUnique({ where: { email: user.email } });
 
     if (!existingUser) {
-      const passwordHash = await argon2.hash(user.password, { type: argon2.argon2id });
+      const passwordHash = await hashPassword(user.password);
       await prisma.user.create({
         data: {
           name: user.name,
