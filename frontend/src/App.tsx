@@ -15,6 +15,8 @@ import { RealReportsScreen } from "./pages/ReportsScreen";
 import { RealProductFormScreen } from "./components/product/ProductForm";
 import { RealProductDetailScreen } from "./pages/ProductDetailScreen";
 import { RealNewMovementScreen } from "./pages/NewMovementScreen";
+import { UsersScreen } from "./pages/UsersScreen";
+import { AccountScreen } from "./pages/AccountScreen";
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthenticatedUser | null>(null);
@@ -87,6 +89,11 @@ export default function App() {
     setScreen("login");
   };
 
+  const handleAccountUpdated = async () => {
+    const { user } = await authApi.me();
+    setCurrentUser(user);
+  };
+
 
   if (authLoading) return <AuthLoadingScreen />;
   if (screen === "login") return <LoginScreen onLogin={handleLogin} />;
@@ -106,7 +113,9 @@ export default function App() {
         {screen === "movements" && <RealMovementsScreen onNavigate={navigate} onUnauthorized={handleUnauthorized} />}
         {screen === "movement-new" && <RealNewMovementScreen onNavigate={navigate} onUnauthorized={handleUnauthorized} />}
         {screen === "reports" && <RealReportsScreen onUnauthorized={handleUnauthorized} />}
-        {screen === "settings" && <SettingsScreen />}
+        {screen === "settings" && <SettingsScreen currentUser={currentUser!} onNavigate={navigate} />}
+        {screen === "users" && currentUser!.role === "ADMIN" && <UsersScreen currentUser={currentUser!} />}
+        {screen === "account" && <AccountScreen onAccountUpdated={handleAccountUpdated} onToast={showToast} onUnauthorized={handleUnauthorized} />}
       </main>
 
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}

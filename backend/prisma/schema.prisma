@@ -13,6 +13,16 @@ enum UserRole {
   INVENTORY
 }
 
+enum UserAuditAction {
+  USER_CREATED
+  USER_UPDATED
+  ROLE_CHANGED
+  USER_ACTIVATED
+  USER_DEACTIVATED
+  PASSWORD_RESET
+  PASSWORD_CHANGED_SELF
+}
+
 enum InventoryMovementType {
   ENTRY
   EXIT
@@ -30,9 +40,27 @@ model User {
   updatedAt       DateTime            @updatedAt @map("updated_at") @db.Timestamptz(6)
   createdProducts Product[]           @relation("ProductCreator")
   movements       InventoryMovement[] @relation("MovementUser")
+  auditActions    UserAuditLog[]       @relation("AuditActor")
+  auditTargets    UserAuditLog[]       @relation("AuditTarget")
 
   @@index([active])
   @@map("users")
+}
+
+model UserAuditLog {
+  id           String          @id @default(uuid()) @db.Uuid
+  actorUserId  String?         @map("actor_user_id") @db.Uuid
+  targetUserId String?         @map("target_user_id") @db.Uuid
+  action       UserAuditAction
+  metadata     Json?           @db.JsonB
+  createdAt    DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  actorUser    User?           @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  targetUser   User?           @relation("AuditTarget", fields: [targetUserId], references: [id], onDelete: Restrict)
+
+  @@index([targetUserId, createdAt(sort: Desc)])
+  @@index([actorUserId, createdAt(sort: Desc)])
+  @@index([action, createdAt(sort: Desc)])
+  @@map("user_audit_logs")
 }
 
 model Category {

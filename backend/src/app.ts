@@ -13,6 +13,8 @@ import { dashboardRouter } from "./modules/dashboard.js";
 import { productImagesRouter } from "./modules/product-images.js";
 import { reportsRouter } from "./modules/reports.js";
 import { productVariantsRouter } from "./modules/product-variants.js";
+import { usersRouter } from "./modules/users.js";
+import { accountRouter } from "./modules/account.js";
 
 export const app = express();
 
@@ -53,6 +55,8 @@ app.use("/api/v1/inventory-movements", inventoryMovementsRouter);
 app.use("/api/v1/dashboard", dashboardRouter);
 app.use("/api/v1/products", productImagesRouter);
 app.use("/api/v1/reports", reportsRouter);
+app.use("/api/v1/users", usersRouter);
+app.use("/api/v1/account", accountRouter);
 
 app.use(
   (

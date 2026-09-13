@@ -9,7 +9,7 @@ import { StatCard } from "../components/ui/StatCard";
 import { TopBar } from "../components/layout/TopBar";
 import { movementQuantity, movementQuantityColor, movementTypeColor, movementTypeLabel } from "../utils/movements";
 import { isoDateOffset, reportStatusColor, reportStatusLabel } from "../utils/reports";
-import { downloadCsv } from "../utils/csv";
+import { downloadCsv, localFileTimestamp } from "../utils/csv";
 
 function reportsMessage(error: unknown, onUnauthorized: () => void) {
   if (error instanceof ApiError && error.status === 401) {
@@ -39,11 +39,11 @@ export function RealReportsScreen({ onUnauthorized }: { onUnauthorized: () => vo
   const reset = () => { const nextFrom = isoDateOffset(-29); const nextTo = isoDateOffset(0); setFrom(nextFrom); setTo(nextTo); void load(nextFrom, nextTo); };
   const exportStock = () => {
     if (!report) return;
-    downloadCsv(`amaram-stock-${report.period.to}.csv`, ["Producto", "SKU base", "SKU variante", "Categoría", "Programa", "Creadora", "Talla", "Color", "Stock", "Stock mínimo", "Estado"], report.stock.map((row) => [row.productName, row.skuBase, row.sku, row.categoryName, row.programName, row.creatorName, row.size || "-", row.color || "-", row.stock, row.minimumStock, reportStatusLabel(row.status)]));
+    downloadCsv(`amaram-stock-${localFileTimestamp()}.csv`, ["Producto", "SKU base", "SKU variante", "Categoría", "Programa", "Creadora", "Talla", "Color", "Stock", "Stock mínimo", "Estado"], report.stock.map((row) => [row.productName, row.skuBase, row.sku, row.categoryName, row.programName, row.creatorName, row.size || "-", row.color || "-", row.stock, row.minimumStock, reportStatusLabel(row.status)]));
   };
   const exportMovements = () => {
     if (!report) return;
-    downloadCsv(`amaram-movimientos-${report.period.to}.csv`, ["Fecha", "Tipo", "Producto", "SKU base", "SKU variante", "Talla", "Color", "Cantidad", "Stock anterior", "Stock posterior", "Usuario", "Motivo"], report.movements.map((row) => [new Date(row.createdAt).toLocaleString("es-PE"), movementTypeLabel(row.type), row.productName, row.skuBase, row.variantSku, row.size || "-", row.color || "-", row.type === "EXIT" ? -row.quantity : row.quantity, row.stockBefore, row.stockAfter, row.userName, row.reason]));
+    downloadCsv(`amaram-movimientos-${localFileTimestamp()}.csv`, ["Fecha", "Tipo", "Producto", "SKU base", "SKU variante", "Talla", "Color", "Cantidad", "Stock anterior", "Stock posterior", "Usuario", "Motivo"], report.movements.map((row) => [new Date(row.createdAt).toLocaleString("es-PE"), movementTypeLabel(row.type), row.productName, row.skuBase, row.variantSku, row.size || "-", row.color || "-", row.type === "EXIT" ? -row.quantity : row.quantity, row.stockBefore, row.stockAfter, row.userName, row.reason]));
   };
 
   return <div className="flex-1 flex flex-col overflow-hidden"><TopBar title="Reportes" subtitle="Resumen operativo de inventario" actions={<div className="flex gap-2"><Btn variant="secondary" size="sm" disabled={!report} onClick={exportStock}>Exportar stock CSV</Btn><Btn variant="secondary" size="sm" disabled={!report} onClick={exportMovements}>Exportar movimientos CSV</Btn></div>} />
@@ -56,4 +56,3 @@ export function RealReportsScreen({ onUnauthorized }: { onUnauthorized: () => vo
     </>}</div>
   </div>;
 }
-

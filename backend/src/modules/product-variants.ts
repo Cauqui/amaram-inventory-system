@@ -19,10 +19,31 @@ router.get("/by-sku/:sku", requireAuth, allowedRoles, async (request, response, 
         product: { select: { id: true, skuBase: true, name: true, active: true } },
       },
     });
-    if (!record) return response.status(404).json({ error: "Product variant not found." });
+    if (record) {
+      const { product, ...variant } = record;
+      return response.status(200).json({ variant, product });
+    }
 
-    const { product, ...variant } = record;
-    return response.status(200).json({ variant, product });
+    const product = await prisma.product.findUnique({
+      where: { skuBase: parsed.data },
+      select: {
+        id: true,
+        skuBase: true,
+        name: true,
+        active: true,
+        variants: {
+          where: { active: true },
+          select: { id: true, sku: true, size: true, color: true, stock: true, minimumStock: true, active: true },
+        },
+      },
+    });
+
+    if (!product || !product.active || product.variants.length !== 1) {
+      return response.status(404).json({ error: "Product variant not found." });
+    }
+
+    const { variants, ...productData } = product;
+    return response.status(200).json({ variant: variants[0], product: productData });
   } catch (error) {
     return next(error);
   }

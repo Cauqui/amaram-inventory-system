@@ -1,6 +1,10 @@
 /// <reference types="vite/client" />
 
 export type AuthRole = "ADMIN" | "INVENTORY";
+export type UserRole = AuthRole;
+export type AdminUser = { id:string; name:string; email:string; role:UserRole; active:boolean; createdAt:string; updatedAt:string };
+export type UserAuditAction = "USER_CREATED"|"USER_UPDATED"|"ROLE_CHANGED"|"USER_ACTIVATED"|"USER_DEACTIVATED"|"PASSWORD_RESET"|"PASSWORD_CHANGED_SELF";
+export type UserAuditLog = { id:string; action:UserAuditAction; metadata:Record<string, unknown>|null; createdAt:string; actorUser:{id:string;name:string;email:string}|null; targetUser:{id:string;name:string;email:string}|null };
 
 export type AuthenticatedUser = {
   id: string;
@@ -8,6 +12,7 @@ export type AuthenticatedUser = {
   email: string;
   role: AuthRole;
 };
+export type AccountUser = AuthenticatedUser & { active:boolean; createdAt:string; updatedAt:string };
 
 export type ApiCategory = {
   id: string;
@@ -210,6 +215,16 @@ export const authApi = {
     return request<void>("/auth/logout", { method: "POST" });
   },
 };
+
+export const usersApi = {
+  list: () => request<{users:AdminUser[]}>("/users"),
+  get: (id:string) => request<{user:AdminUser}>(`/users/${id}`),
+  create: (data:{name:string;email:string;password:string;confirmPassword:string;role:UserRole;active?:boolean}) => request<{user:AdminUser}>("/users",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(data)}),
+  update: (id:string,data:Partial<Pick<AdminUser,"name"|"email"|"role"|"active">>) => request<{user:AdminUser}>(`/users/${id}`,{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify(data)}),
+  resetPassword: (id:string,data:{password:string;confirmPassword:string}) => request<void>(`/users/${id}/reset-password`,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(data)}),
+  auditLogs: (id:string) => request<{logs:UserAuditLog[]}>(`/users/${id}/audit-logs`),
+};
+export const accountApi = { get:()=>request<{user:AccountUser}>("/account"), update:(data:{name?:string;email?:string})=>request<{user:AccountUser}>("/account",{method:"PATCH",headers:{"content-type":"application/json"},body:JSON.stringify(data)}), changePassword:(data:{currentPassword:string;newPassword:string;confirmPassword:string})=>request<void>("/account/change-password",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(data)}) };
 
 export const categoriesApi = {
   list() {
