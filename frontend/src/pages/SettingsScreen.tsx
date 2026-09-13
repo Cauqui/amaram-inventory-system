@@ -13,7 +13,7 @@ export function SettingsScreen({ currentUser, onNavigate }: { currentUser: Authe
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       <TopBar title="Configuración" subtitle="Opciones del sistema AMARAM" />
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="max-w-2xl space-y-3">
           {sections.map(s => (
             <button key={s.title} type="button" onClick={() => onNavigate?.(s.title === "Usuarios" ? "users" : "account")} className="w-full text-left bg-white rounded-lg border border-[#E2DDD7] p-4 shadow-sm flex items-center gap-4 hover:border-[#2D6A6A] transition-all">

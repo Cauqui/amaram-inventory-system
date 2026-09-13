@@ -92,7 +92,7 @@ export function AccountScreen({ onAccountUpdated, onToast, onUnauthorized }: Acc
 
   return <div className="flex-1 flex flex-col overflow-hidden">
     <TopBar title="Mi cuenta" subtitle="Administra tu información personal y seguridad" actions={<Btn variant="secondary" size="sm" onClick={() => void load()}>Recargar</Btn>} />
-    <div className="flex-1 overflow-y-auto p-6">
+    <div className="flex-1 overflow-y-auto p-4 sm:p-6">
       <div className="max-w-3xl mx-auto space-y-5">
         {loading && <div className="text-center py-12 text-sm text-[#6B6560]">Cargando información de la cuenta...</div>}
         {!loading && !account && <div className="text-center py-12 space-y-3"><p className="text-sm text-[#C62828]">{profileError}</p><Btn variant="secondary" onClick={() => void load()}>Reintentar</Btn></div>}
@@ -103,7 +103,7 @@ export function AccountScreen({ onAccountUpdated, onToast, onUnauthorized }: Acc
               {profileError && <p className="rounded border border-[#FFCDD2] bg-[#FFEBEE] px-3 py-2 text-sm text-[#C62828]">{profileError}</p>}
               <Input label="Nombre completo" value={name} onChange={setName} required />
               <Input label="Correo electrónico" type="email" value={email} onChange={setEmail} required />
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div><p className="text-xs font-medium text-[#6B6560] uppercase tracking-wide mb-1">Rol</p><p className="rounded border border-[#E2DDD7] bg-[#F5F3F0] px-3 py-2 text-sm text-[#6B6560]">{account.role === "ADMIN" ? "Administrador" : "Personal de inventario"}</p></div>
                 <div><p className="text-xs font-medium text-[#6B6560] uppercase tracking-wide mb-2">Estado</p><Badge label={account.active ? "Activo" : "Inactivo"} color={account.active ? "bg-[#E8F5E9] text-[#2E7D32]" : "bg-gray-100 text-gray-500"} /></div>
               </div>

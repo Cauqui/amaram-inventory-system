@@ -25,4 +25,5 @@ export const Icons = {
   filter: "M22 3H2l8 9.46V19l4 2v-8.54L22 3z",
   user: "M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2 M12 11a4 4 0 100-8 4 4 0 000 8z",
   back: "M19 12H5M12 19l-7-7 7-7",
+  menu: "M4 6h16M4 12h16M4 18h16",
 };

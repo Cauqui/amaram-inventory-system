@@ -33,7 +33,7 @@ export function LoginScreen({ onLogin }: { onLogin: (user: AuthenticatedUser) =>
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F3F0] flex items-center justify-center p-6">
+    <div className="min-h-screen bg-[#F5F3F0] flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <img src={amaramLogo} alt="AMARAM" className="w-20 h-20 object-contain mx-auto mb-4" />
@@ -41,7 +41,7 @@ export function LoginScreen({ onLogin }: { onLogin: (user: AuthenticatedUser) =>
           <p className="text-sm text-[#6B6560] mt-1">Sistema de Gestión de Inventario</p>
         </div>
 
-        <div className="bg-white rounded-xl shadow-sm border border-[#E2DDD7] p-6">
+        <div className="bg-white rounded-xl shadow-sm border border-[#E2DDD7] p-4 sm:p-6">
           <h2 className="text-sm font-semibold text-[#1A1A1A] mb-5">Iniciar sesión</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="flex flex-col gap-1">

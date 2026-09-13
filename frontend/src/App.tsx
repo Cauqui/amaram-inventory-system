@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { authApi, type ApiProduct, type AuthenticatedUser } from "./lib/api";
 import type { Screen } from "./types/navigation";
 import { Toast } from "./components/ui/Toast";
+import { MobileNavigationContext } from "./components/layout/TopBar";
 import { Sidebar } from "./components/layout/Sidebar";
 import { LoginScreen } from "./pages/LoginScreen";
 import { AuthLoadingScreen } from "./pages/AuthLoadingScreen";
@@ -24,6 +25,7 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>("login");
   const [selectedProduct, setSelectedProduct] = useState<ApiProduct | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
+  const [mobileNavigationOpen, setMobileNavigationOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -58,6 +60,7 @@ export default function App() {
       setSelectedProduct(data as ApiProduct);
     }
     setScreen(s);
+    setMobileNavigationOpen(false);
   };
 
   const handleLogin = (user: AuthenticatedUser) => {
@@ -99,10 +102,10 @@ export default function App() {
   if (screen === "login") return <LoginScreen onLogin={handleLogin} />;
 
   return (
-    <div className="flex h-screen bg-[#F5F3F0] overflow-hidden" style={{ fontFamily: "var(--font-sans)" }}>
-      <Sidebar currentScreen={screen} onNavigate={navigate} currentUser={currentUser!} onLogout={handleLogout} />
+    <div className="flex min-h-dvh bg-[#F5F3F0] overflow-hidden" style={{ fontFamily: "var(--font-sans)" }}>
+      <Sidebar currentScreen={screen} onNavigate={navigate} currentUser={currentUser!} onLogout={handleLogout} mobileOpen={mobileNavigationOpen} onMobileClose={() => setMobileNavigationOpen(false)} />
 
-      <main className="flex-1 flex flex-col overflow-hidden">
+      <MobileNavigationContext.Provider value={() => setMobileNavigationOpen(true)}><main className="flex-1 min-w-0 flex flex-col overflow-hidden">
         {screen === "dashboard" && <RealDashboardScreen onNavigate={navigate} onUnauthorized={handleUnauthorized} />}
         {screen === "inventory" && <RealInventoryScreen onNavigate={navigate} onUnauthorized={handleUnauthorized} />}
         {(screen === "product-new") && <RealProductFormScreen onNavigate={navigate} onSaved={handleSaveProduct} onUnauthorized={handleUnauthorized} />}
@@ -116,7 +119,7 @@ export default function App() {
         {screen === "settings" && <SettingsScreen currentUser={currentUser!} onNavigate={navigate} />}
         {screen === "users" && currentUser!.role === "ADMIN" && <UsersScreen currentUser={currentUser!} />}
         {screen === "account" && <AccountScreen onAccountUpdated={handleAccountUpdated} onToast={showToast} onUnauthorized={handleUnauthorized} />}
-      </main>
+      </main></MobileNavigationContext.Provider>
 
       {toast && <Toast message={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
     </div>
