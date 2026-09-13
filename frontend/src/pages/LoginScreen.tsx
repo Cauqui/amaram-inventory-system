@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { ApiError, authApi, type AuthenticatedUser } from "../lib/api";
-import amaramLogo from "../assets/amaram-logo.png";
 import { Icon } from "../components/ui/Icon";
 import { Icons } from "../components/ui/icons";
 
@@ -36,7 +35,7 @@ export function LoginScreen({ onLogin }: { onLogin: (user: AuthenticatedUser) =>
     <div className="min-h-screen bg-[#F5F3F0] flex items-center justify-center p-4 sm:p-6">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <img src={amaramLogo} alt="AMARAM" className="w-20 h-20 object-contain mx-auto mb-4" />
+          <img src="/amaram-logo.png" alt="AMARAM" className="w-20 h-20 object-contain mx-auto mb-4" />
           <h1 className="text-3xl font-bold text-[#1A1A1A]" style={{ fontFamily: "var(--font-display)" }}>AMARAM</h1>
           <p className="text-sm text-[#6B6560] mt-1">Sistema de Gestión de Inventario</p>
         </div>
